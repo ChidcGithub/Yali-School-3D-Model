@@ -30,12 +30,12 @@ export function LoadingScreen() {
         YALI <span className="text-amber">·</span> CAMPUS 3D
       </div>
       <div className="font-mono text-[10px] tracking-widest text-fog/70 mb-10">
-        雅礼中学校园三维重建 · 摄影测量瓦片加载中
+        YALI MIDDLE SCHOOL CAMPUS 3D RECONSTRUCTION · LOADING PHOTOGRAMMETRY TILES
       </div>
 
       {error ? (
         <div className="max-w-md px-6 text-center font-mono text-xs text-red-400">
-          加载失败：{error}
+          Load failed: {error}
         </div>
       ) : (
         <>

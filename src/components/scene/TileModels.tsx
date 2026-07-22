@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useSceneStore } from '@/store/sceneStore'
 import { TILE_NAMES, loadTile } from '@/three/tiles'
-import { generateViewpoints } from '@/three/viewpoints'
 
 // Loads all OBJ tiles, re-centers the assembled model so the campus sits at the
-// origin with ground at y=0, then publishes generated viewpoints to the store.
+// origin with ground at y=0, then marks the scene as loaded.
 export function TileModels() {
   const [tiles, setTiles] = useState<THREE.Group[]>([])
   const groupRef = useRef<THREE.Group>(null)
@@ -13,7 +12,6 @@ export function TileModels() {
   const setProgress = useSceneStore((s) => s.setProgress)
   const setLoaded = useSceneStore((s) => s.setLoaded)
   const setLoadError = useSceneStore((s) => s.setLoadError)
-  const selectViewpoint = useSceneStore((s) => s.selectViewpoint)
 
   // Queue-based loader. Concurrency is deliberately 1: OBJLoader parses each
   // large OBJ synchronously on the main thread (multi-second blocks). With >1
@@ -63,13 +61,13 @@ export function TileModels() {
       const got = collected.filter(Boolean)
       if (got.length === 0) {
         setLoadError(
-          `${failed.length} 个瓦片加载失败：${failed.map((i) => TILE_NAMES[i]).join(', ')}`,
+          `${failed.length} tile(s) failed to load: ${failed.map((i) => TILE_NAMES[i]).join(', ')}`,
         )
         return
       }
       if (failed.length > 0) {
         // Partial load: surface a non-fatal note but still render what we have.
-        console.warn(`[tiles] ${failed.length} 个瓦片未能加载：`, failed.map((i) => TILE_NAMES[i]))
+        console.warn(`[tiles] ${failed.length} tile(s) failed:`, failed.map((i) => TILE_NAMES[i]))
       }
       setTiles(got)
     })()
@@ -80,7 +78,8 @@ export function TileModels() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Once tiles are rendered into the group, recenter & generate viewpoints.
+  // Once tiles are rendered into the group, recenter the assembled model so
+  // the campus sits at the origin with ground at y=0, then mark as loaded.
   useEffect(() => {
     if (tiles.length === 0 || !groupRef.current) return
     const grp = groupRef.current
@@ -103,12 +102,8 @@ export function TileModels() {
     grp.position.set(-center.x, -box.min.y, -center.z)
     grp.updateWorldMatrix(true, true)
 
-    const centeredBox = new THREE.Box3().setFromObject(grp)
-    const viewpoints = generateViewpoints(centeredBox)
-    setLoaded(viewpoints)
-    // Intro: fly into the first (aerial) viewpoint.
-    if (viewpoints[0]) selectViewpoint(viewpoints[0].id)
-  }, [tiles, setLoaded, selectViewpoint])
+    setLoaded()
+  }, [tiles, setLoaded])
 
   return (
     <group ref={groupRef}>

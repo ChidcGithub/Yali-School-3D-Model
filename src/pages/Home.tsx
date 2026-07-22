@@ -1,8 +1,6 @@
 import { CampusScene } from '@/components/scene/CampusScene'
 import { LoadingScreen } from '@/components/ui/LoadingScreen'
 import { TopBar } from '@/components/ui/TopBar'
-import { TourPanel } from '@/components/ui/TourPanel'
-import { InfoCard } from '@/components/ui/InfoCard'
 import { ControlHints } from '@/components/ui/ControlHints'
 
 export default function Home() {
@@ -24,8 +22,6 @@ export default function Home() {
 
       {/* UI overlays */}
       <TopBar />
-      <TourPanel />
-      <InfoCard />
       <ControlHints />
 
       {/* Loading screen sits above everything until assets resolve */}

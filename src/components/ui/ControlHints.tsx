@@ -18,9 +18,13 @@ export function ControlHints() {
   if (!showHints) return null
 
   const rows = [
-    { label: '左键拖拽', desc: '旋转视角' },
-    { label: '右键拖拽', desc: '平移' },
-    { label: '滚轮', desc: '缩放' },
+    { label: 'Left Drag', desc: 'Orbit' },
+    { label: 'Right Drag', desc: 'Pan' },
+    { label: 'Wheel', desc: 'Zoom' },
+    { label: 'W / S', desc: 'Forward / Back' },
+    { label: 'A / D', desc: 'Left / Right' },
+    { label: 'Q / E', desc: 'Down / Up' },
+    { label: 'Shift', desc: '2× Speed' },
   ]
 
   return (
@@ -34,7 +38,7 @@ export function ControlHints() {
           <button
             onClick={dismissHints}
             className="text-fog/40 hover:text-amber"
-            aria-label="关闭提示"
+            aria-label="Dismiss hints"
           >
             <X size={12} />
           </button>
