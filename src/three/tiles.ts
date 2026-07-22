@@ -24,9 +24,41 @@ export const TILE_NAMES = [
   'Tile_+003_+004',
 ] as const
 
-// BASE_URL is '/' in dev and the repo subpath (e.g. '/Yali-School-3D-Model/')
-// when built for GitHub Pages, so model URLs resolve correctly in both.
-export const TILE_BASE = `${import.meta.env.BASE_URL}Models/OBJ/Data`
+// Tile download sources. The origin is the hosting server (localhost in dev,
+// GitHub Pages in prod). jsDelivr mirrors the GitHub repo via a global CDN
+// with per-region edges, which is dramatically faster in regions where GitHub
+// Pages is slow. Both serve the same file tree under Models/OBJ/Data.
+export interface TileSource {
+  id: string
+  label: string
+  base: string
+}
+export const TILE_SOURCES: TileSource[] = [
+  {
+    id: 'origin',
+    label: 'ORIGIN',
+    base: `${import.meta.env.BASE_URL}Models/OBJ/Data`,
+  },
+  {
+    id: 'jsdelivr',
+    label: 'JSDELIVR CDN',
+    base: 'https://cdn.jsdelivr.net/gh/ChidcGithub/Yali-School-3D-Model@main/Models/OBJ/Data',
+  },
+]
+
+// Active tile base — mutable so the user can switch sources at runtime. Default
+// to jsDelivr in production (CDN acceleration) and origin in dev (local files).
+let activeTileBase =
+  import.meta.env.DEV ? TILE_SOURCES[0].base : TILE_SOURCES[1].base
+export function getTileBase(): string {
+  return activeTileBase
+}
+export function setTileBase(base: string): void {
+  activeTileBase = base
+}
+export function getDefaultSourceId(): string {
+  return import.meta.env.DEV ? 'origin' : 'jsdelivr'
+}
 
 // Cache API store name. Bump the version suffix to invalidate stale entries
 // after a model or code change. The browser persists this across visits, so
@@ -93,10 +125,24 @@ async function fetchTextWithProgress(
 
 // Cache API helpers. Failures (quota exceeded, private mode, etc.) are silent:
 // we fall back to a normal network fetch, so caching is a pure optimization.
+//
+// The Cache instance is opened ONCE and shared — calling caches.open() per
+// request serializes on an internal lock, which blocks the next tile's cache
+// check and therefore its fetch. With a shared instance, cache.put() writes
+// run concurrently in the background without stalling the download pipeline.
+let cachePromise: Promise<Cache | null> | null = null
+function getCache(): Promise<Cache | null> {
+  if (typeof caches === 'undefined') return Promise.resolve(null)
+  if (!cachePromise) {
+    cachePromise = caches.open(CACHE_NAME).catch(() => null)
+  }
+  return cachePromise
+}
+
 async function getCachedText(url: string): Promise<string | null> {
-  if (typeof caches === 'undefined') return null
+  const cache = await getCache()
+  if (!cache) return null
   try {
-    const cache = await caches.open(CACHE_NAME)
     const cached = await cache.match(url)
     return cached ? await cached.text() : null
   } catch {
@@ -104,15 +150,14 @@ async function getCachedText(url: string): Promise<string | null> {
   }
 }
 
-async function setCachedText(url: string, text: string): Promise<void> {
-  if (typeof caches === 'undefined') return
-  try {
-    const cache = await caches.open(CACHE_NAME)
+// Fire-and-forget: writes to the cache in the background so it never blocks the
+// download → parse → mount pipeline. Errors are swallowed.
+function setCachedText(url: string, text: string): void {
+  void getCache().then((cache) => {
+    if (!cache) return
     const res = new Response(text, { headers: { 'Content-Type': 'text/plain' } })
-    await cache.put(url, res)
-  } catch {
-    // Quota exceeded or storage unavailable — skip caching, keep loading.
-  }
+    cache.put(url, res).catch(() => {})
+  })
 }
 
 export interface TileTexts {
@@ -133,7 +178,7 @@ export async function downloadTileTexts(
   onProgress?: (received: number, total: number) => void,
 ): Promise<TileTexts> {
   return withRetry(tileName, async () => {
-    const dir = `${TILE_BASE}/${tileName}`
+    const dir = `${getTileBase()}/${tileName}`
     const mtlUrl = `${dir}/${tileName}.mtl`
     const objUrl = `${dir}/${tileName}.obj`
 
@@ -151,7 +196,7 @@ export async function downloadTileTexts(
       mtlText = cachedMtl
     } else {
       mtlText = await fetchTextWithProgress(mtlUrl)
-      await setCachedText(mtlUrl, mtlText)
+      setCachedText(mtlUrl, mtlText)
     }
 
     // .obj is the big one — stream it for byte-level progress, cache after.
@@ -165,7 +210,7 @@ export async function downloadTileTexts(
         // mtl is negligible; report obj bytes directly as the tile's progress.
         onProgress?.(received, total)
       })
-      await setCachedText(objUrl, objText)
+      setCachedText(objUrl, objText)
     }
 
     return { mtl: mtlText, obj: objText }
@@ -177,7 +222,7 @@ export async function downloadTileTexts(
 // callers MUST run this serially — never parse two tiles at once, or the main
 // thread stalls and in-flight fetches can be aborted by the browser.
 export function parseTile(tileName: string, texts: TileTexts): THREE.Group {
-  const dir = `${TILE_BASE}/${tileName}`
+  const dir = `${getTileBase()}/${tileName}`
   const mtlLoader = new MTLLoader()
   mtlLoader.setResourcePath(`${dir}/`)
   const materials = mtlLoader.parse(texts.mtl, `${dir}/`)

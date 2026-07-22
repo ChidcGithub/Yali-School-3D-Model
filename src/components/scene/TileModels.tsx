@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useSceneStore } from '@/store/sceneStore'
-import { TILE_NAMES, downloadTileTexts, parseTile, type TileTexts } from '@/three/tiles'
+import {
+  TILE_NAMES,
+  TILE_SOURCES,
+  downloadTileTexts,
+  parseTile,
+  setTileBase,
+  type TileTexts,
+} from '@/three/tiles'
 
 // Once this many tiles are mounted, the centering offset is computed and frozen
 // (also matches the SKIP button threshold in the loading screen).
@@ -33,6 +40,8 @@ export function TileModels() {
   const centeredRef = useRef(false)
 
   const isLoaded = useSceneStore((s) => s.isLoaded)
+  const reloadKey = useSceneStore((s) => s.reloadKey)
+  const tileSourceId = useSceneStore((s) => s.tileSourceId)
   const initTiles = useSceneStore((s) => s.initTiles)
   const setTileDownloading = useSceneStore((s) => s.setTileDownloading)
   const setTileDownloaded = useSceneStore((s) => s.setTileDownloaded)
@@ -45,6 +54,15 @@ export function TileModels() {
 
   useEffect(() => {
     let cancelled = false
+    // Sync the active tile base to the selected source before any fetch.
+    const src = TILE_SOURCES.find((s) => s.id === tileSourceId) ?? TILE_SOURCES[0]
+    setTileBase(src.base)
+
+    // Reset local state for a clean reload.
+    setTiles([])
+    setCenter([0, 0, 0])
+    centeredRef.current = false
+
     const names = TILE_NAMES as readonly string[]
     initTiles([...names])
 
@@ -139,6 +157,8 @@ export function TileModels() {
       window.clearInterval(flushId)
     }
   }, [
+    reloadKey,
+    tileSourceId,
     initTiles,
     setTileDownloading,
     setTileDownloaded,

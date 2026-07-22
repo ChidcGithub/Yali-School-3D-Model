@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getDefaultSourceId } from '@/three/tiles'
 
 export type Atmosphere = 'day' | 'dusk'
 
@@ -24,6 +25,11 @@ interface SceneState {
   bgPanelOpen: boolean
   loadError: string | null
 
+  // Download source — lets the user pick a faster mirror (e.g. jsDelivr CDN).
+  // Changing it bumps reloadKey, which TileModels watches to cancel & restart.
+  tileSourceId: string
+  reloadKey: number
+
   // Atmosphere / UI
   atmosphere: Atmosphere
   showHints: boolean
@@ -44,6 +50,7 @@ interface SceneState {
   toggleBgPanel: () => void
   setLoaded: () => void
   setLoadError: (msg: string) => void
+  setTileSource: (id: string) => void
   setAtmosphere: (a: Atmosphere) => void
   toggleAtmosphere: () => void
   dismissHints: () => void
@@ -57,6 +64,9 @@ export const useSceneStore = create<SceneState>((set) => ({
   skipped: false,
   bgPanelOpen: false,
   loadError: null,
+
+  tileSourceId: getDefaultSourceId(),
+  reloadKey: 0,
 
   atmosphere: 'day',
   showHints: true,
@@ -133,6 +143,20 @@ export const useSceneStore = create<SceneState>((set) => ({
   setLoaded: () => set({ isLoaded: true }),
 
   setLoadError: (msg) => set({ loadError: msg }),
+
+  // Switching source resets the load state and bumps reloadKey so TileModels
+  // cancels in-flight work and starts fresh with the new base URL.
+  setTileSource: (id) =>
+    set((s) => ({
+      tileSourceId: id,
+      reloadKey: s.reloadKey + 1,
+      tileProgress: {},
+      totalTiles: 0,
+      isLoaded: false,
+      skipped: false,
+      bgPanelOpen: false,
+      loadError: null,
+    })),
 
   setAtmosphere: (a) => set({ atmosphere: a }),
   toggleAtmosphere: () => set((s) => ({ atmosphere: s.atmosphere === 'day' ? 'dusk' : 'day' })),

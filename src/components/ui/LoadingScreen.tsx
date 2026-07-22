@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { useSceneStore } from '@/store/sceneStore'
-import { TILE_NAMES } from '@/three/tiles'
+import { TILE_NAMES, TILE_SOURCES } from '@/three/tiles'
 import { cn } from '@/lib/utils'
 
 // Number of downloaded tiles required before the SKIP button appears. Matches
@@ -11,13 +11,16 @@ const SKIP_THRESHOLD = 3
 
 // Metro splash — pure black, a single amber brand tile that pulses, then bold
 // uppercase typography, a byte-weighted overall progress bar, a per-tile status
-// grid, and a SKIP button once enough tiles have downloaded to enter the page.
+// grid, a SKIP button once enough tiles have downloaded to enter the page, and
+// a download-source switcher for picking a faster mirror.
 export function LoadingScreen() {
   const tileProgress = useSceneStore((s) => s.tileProgress)
   const totalTiles = useSceneStore((s) => s.totalTiles)
   const error = useSceneStore((s) => s.loadError)
   const isLoaded = useSceneStore((s) => s.isLoaded)
   const skip = useSceneStore((s) => s.skip)
+  const tileSourceId = useSceneStore((s) => s.tileSourceId)
+  const setTileSource = useSceneStore((s) => s.setTileSource)
 
   const { pct, readyCount, downloadedCount, totalReceived, totalBytes } = useMemo(() => {
     let received = 0
@@ -135,6 +138,27 @@ export function LoadingScreen() {
                 {downloadedCount}/{SKIP_THRESHOLD} TILES TO SKIP
               </div>
             )}
+          </div>
+
+          {/* Download source switcher — pick a faster mirror. */}
+          <div className="mt-4 flex items-center justify-center gap-1">
+            <span className="mr-1 font-mono text-[9px] uppercase tracking-metro text-fog/40">
+              SRC
+            </span>
+            {TILE_SOURCES.map((src) => (
+              <button
+                key={src.id}
+                onClick={() => setTileSource(src.id)}
+                className={cn(
+                  'px-2 py-1 font-mono text-[9px] uppercase tracking-metro transition-colors',
+                  tileSourceId === src.id
+                    ? 'bg-amber text-black'
+                    : 'bg-ink-800 text-fog hover:bg-ink-700',
+                )}
+              >
+                {src.label}
+              </button>
+            ))}
           </div>
         </div>
       )}
