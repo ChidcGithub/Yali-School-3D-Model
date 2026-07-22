@@ -24,40 +24,38 @@ export const TILE_NAMES = [
   'Tile_+003_+004',
 ] as const
 
-// Tile download sources. The origin is the hosting server (localhost in dev,
-// GitHub Pages in prod). jsDelivr mirrors the GitHub repo via a global CDN
-// with per-region edges, which is dramatically faster in regions where GitHub
-// Pages is slow. Both serve the same file tree under Models/OBJ/Data.
-export interface TileSource {
-  id: string
-  label: string
-  base: string
-}
-export const TILE_SOURCES: TileSource[] = [
-  {
-    id: 'origin',
-    label: 'ORIGIN',
-    base: `${import.meta.env.BASE_URL}Models/OBJ/Data`,
-  },
-  {
-    id: 'jsdelivr',
-    label: 'JSDELIVR CDN',
-    base: 'https://cdn.jsdelivr.net/gh/ChidcGithub/Yali-School-3D-Model@main/Models/OBJ/Data',
-  },
-]
+// Tile download base URL. The origin is the hosting server (localhost in dev,
+// GitHub Pages in prod). A user-supplied GitHub proxy can override it at
+// runtime for faster downloads in regions where GitHub is slow — the user
+// pastes a proxy prefix that points at the repo's raw file tree.
+//
+// GitHub raw path for this repo's tile data:
+//   https://raw.githubusercontent.com/ChidcGithub/Yali-School-3D-Model/main/Models/OBJ/Data
+// A proxy prefix replaces the host, e.g.:
+//   https://<proxy-host>/https://raw.githubusercontent.com/ChidcGithub/Yali-School-3D-Model/main/Models/OBJ/Data
+// The user enters just the prefix (everything before the raw URL); we append
+// the raw path here so they don't have to.
+const GITHUB_RAW_BASE =
+  'https://raw.githubusercontent.com/ChidcGithub/Yali-School-3D-Model/main/Models/OBJ/Data'
+const ORIGIN_BASE = `${import.meta.env.BASE_URL}Models/OBJ/Data`
 
-// Active tile base — mutable so the user can switch sources at runtime. Default
-// to jsDelivr in production (CDN acceleration) and origin in dev (local files).
-let activeTileBase =
-  import.meta.env.DEV ? TILE_SOURCES[0].base : TILE_SOURCES[1].base
+let activeTileBase = ORIGIN_BASE
+
 export function getTileBase(): string {
   return activeTileBase
 }
 export function setTileBase(base: string): void {
   activeTileBase = base
 }
-export function getDefaultSourceId(): string {
-  return import.meta.env.DEV ? 'origin' : 'jsdelivr'
+// Build the tile base from a user-entered proxy prefix. Empty string = origin.
+export function setTileBaseFromProxy(proxyPrefix: string): void {
+  const trimmed = proxyPrefix.trim()
+  if (trimmed === '') {
+    activeTileBase = ORIGIN_BASE
+  } else {
+    // Strip a trailing slash so concatenation doesn't double up.
+    activeTileBase = `${trimmed.replace(/\/$/, '')}/${GITHUB_RAW_BASE}`
+  }
 }
 
 // Cache API store name. Bump the version suffix to invalidate stale entries

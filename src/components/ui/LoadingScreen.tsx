@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { useSceneStore } from '@/store/sceneStore'
-import { TILE_NAMES, TILE_SOURCES } from '@/three/tiles'
+import { TILE_NAMES } from '@/three/tiles'
 import { cn } from '@/lib/utils'
 
 // Number of downloaded tiles required before the SKIP button appears. Matches
@@ -12,15 +12,16 @@ const SKIP_THRESHOLD = 3
 // Metro splash — pure black, a single amber brand tile that pulses, then bold
 // uppercase typography, a byte-weighted overall progress bar, a per-tile status
 // grid, a SKIP button once enough tiles have downloaded to enter the page, and
-// a download-source switcher for picking a faster mirror.
+// a proxy input for accelerating downloads via a user-supplied GitHub mirror.
 export function LoadingScreen() {
   const tileProgress = useSceneStore((s) => s.tileProgress)
   const totalTiles = useSceneStore((s) => s.totalTiles)
   const error = useSceneStore((s) => s.loadError)
   const isLoaded = useSceneStore((s) => s.isLoaded)
   const skip = useSceneStore((s) => s.skip)
-  const tileSourceId = useSceneStore((s) => s.tileSourceId)
-  const setTileSource = useSceneStore((s) => s.setTileSource)
+  const proxyUrl = useSceneStore((s) => s.proxyUrl)
+  const setProxyUrl = useSceneStore((s) => s.setProxyUrl)
+  const [proxyInput, setProxyInput] = useState(proxyUrl)
 
   const { pct, readyCount, downloadedCount, totalReceived, totalBytes } = useMemo(() => {
     let received = 0
@@ -140,25 +141,44 @@ export function LoadingScreen() {
             )}
           </div>
 
-          {/* Download source switcher — pick a faster mirror. */}
-          <div className="mt-4 flex items-center justify-center gap-1">
-            <span className="mr-1 font-mono text-[9px] uppercase tracking-metro text-fog/40">
-              SRC
-            </span>
-            {TILE_SOURCES.map((src) => (
+          {/* GitHub proxy input — user pastes a mirror prefix to accelerate
+              downloads. Empty = use the hosting origin directly. */}
+          <div className="mt-4">
+            <div className="mb-1 flex items-center justify-between font-mono text-[9px] uppercase tracking-metro text-fog/40">
+              <span>GITHUB PROXY</span>
+              <span className={cn('tabular-nums', proxyUrl ? 'text-amber' : 'text-fog/40')}>
+                {proxyUrl ? 'CUSTOM' : 'ORIGIN'}
+              </span>
+            </div>
+            <div className="flex gap-1">
+              <input
+                type="text"
+                value={proxyInput}
+                onChange={(e) => setProxyInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && proxyInput.trim() !== proxyUrl) {
+                    setProxyUrl(proxyInput.trim())
+                  }
+                }}
+                placeholder="https://your-proxy.example"
+                spellCheck={false}
+                className="min-w-0 flex-1 bg-ink-800 px-2 py-1.5 font-mono text-[10px] text-fog placeholder:text-fog/30 focus:outline-none focus:bg-ink-700"
+              />
               <button
-                key={src.id}
-                onClick={() => setTileSource(src.id)}
+                onClick={() => {
+                  if (proxyInput.trim() !== proxyUrl) setProxyUrl(proxyInput.trim())
+                }}
+                disabled={proxyInput.trim() === proxyUrl}
                 className={cn(
-                  'px-2 py-1 font-mono text-[9px] uppercase tracking-metro transition-colors',
-                  tileSourceId === src.id
-                    ? 'bg-amber text-black'
-                    : 'bg-ink-800 text-fog hover:bg-ink-700',
+                  'px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-metro transition-colors',
+                  proxyInput.trim() === proxyUrl
+                    ? 'cursor-not-allowed bg-ink-800 text-fog/30'
+                    : 'bg-amber text-black hover:bg-amber-soft',
                 )}
               >
-                {src.label}
+                SET
               </button>
-            ))}
+            </div>
           </div>
         </div>
       )}

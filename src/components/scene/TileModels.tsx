@@ -3,10 +3,9 @@ import * as THREE from 'three'
 import { useSceneStore } from '@/store/sceneStore'
 import {
   TILE_NAMES,
-  TILE_SOURCES,
   downloadTileTexts,
   parseTile,
-  setTileBase,
+  setTileBaseFromProxy,
   type TileTexts,
 } from '@/three/tiles'
 
@@ -41,7 +40,7 @@ export function TileModels() {
 
   const isLoaded = useSceneStore((s) => s.isLoaded)
   const reloadKey = useSceneStore((s) => s.reloadKey)
-  const tileSourceId = useSceneStore((s) => s.tileSourceId)
+  const proxyUrl = useSceneStore((s) => s.proxyUrl)
   const initTiles = useSceneStore((s) => s.initTiles)
   const setTileDownloading = useSceneStore((s) => s.setTileDownloading)
   const setTileDownloaded = useSceneStore((s) => s.setTileDownloaded)
@@ -54,9 +53,8 @@ export function TileModels() {
 
   useEffect(() => {
     let cancelled = false
-    // Sync the active tile base to the selected source before any fetch.
-    const src = TILE_SOURCES.find((s) => s.id === tileSourceId) ?? TILE_SOURCES[0]
-    setTileBase(src.base)
+    // Sync the active tile base to the user's proxy before any fetch.
+    setTileBaseFromProxy(proxyUrl)
 
     // Reset local state for a clean reload.
     setTiles([])
@@ -158,7 +156,7 @@ export function TileModels() {
     }
   }, [
     reloadKey,
-    tileSourceId,
+    proxyUrl,
     initTiles,
     setTileDownloading,
     setTileDownloaded,

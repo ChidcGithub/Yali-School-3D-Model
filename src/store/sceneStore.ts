@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { getDefaultSourceId } from '@/three/tiles'
 
 export type Atmosphere = 'day' | 'dusk'
 
@@ -25,9 +24,9 @@ interface SceneState {
   bgPanelOpen: boolean
   loadError: string | null
 
-  // Download source — lets the user pick a faster mirror (e.g. jsDelivr CDN).
+  // Download source — a user-supplied GitHub proxy prefix (empty = origin).
   // Changing it bumps reloadKey, which TileModels watches to cancel & restart.
-  tileSourceId: string
+  proxyUrl: string
   reloadKey: number
 
   // Atmosphere / UI
@@ -50,7 +49,7 @@ interface SceneState {
   toggleBgPanel: () => void
   setLoaded: () => void
   setLoadError: (msg: string) => void
-  setTileSource: (id: string) => void
+  setProxyUrl: (url: string) => void
   setAtmosphere: (a: Atmosphere) => void
   toggleAtmosphere: () => void
   dismissHints: () => void
@@ -65,7 +64,7 @@ export const useSceneStore = create<SceneState>((set) => ({
   bgPanelOpen: false,
   loadError: null,
 
-  tileSourceId: getDefaultSourceId(),
+  proxyUrl: '',
   reloadKey: 0,
 
   atmosphere: 'day',
@@ -144,11 +143,11 @@ export const useSceneStore = create<SceneState>((set) => ({
 
   setLoadError: (msg) => set({ loadError: msg }),
 
-  // Switching source resets the load state and bumps reloadKey so TileModels
+  // Switching proxy resets the load state and bumps reloadKey so TileModels
   // cancels in-flight work and starts fresh with the new base URL.
-  setTileSource: (id) =>
+  setProxyUrl: (url) =>
     set((s) => ({
-      tileSourceId: id,
+      proxyUrl: url,
       reloadKey: s.reloadKey + 1,
       tileProgress: {},
       totalTiles: 0,
