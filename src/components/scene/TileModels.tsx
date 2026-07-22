@@ -1,125 +1,182 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useSceneStore } from '@/store/sceneStore'
-import { TILE_NAMES, loadTile } from '@/three/tiles'
+import { TILE_NAMES, downloadTileTexts, parseTile, type TileTexts } from '@/three/tiles'
 
-// Loads all OBJ tiles, re-centers the assembled model so the campus sits at the
-// origin with ground at y=0, then marks the scene as loaded.
+// Once this many tiles are mounted, the centering offset is computed and frozen
+// (also matches the SKIP button threshold in the loading screen).
+const CENTER_THRESHOLD = 3
+// Byte-progress flush cadence: 18 concurrent downloads each fire hundreds of
+// chunks/sec, so we buffer and flush to the store at most 10x/sec.
+const PROGRESS_FLUSH_MS = 100
+
+// Concurrent download + serial parse loader.
+//
+// All 18 tiles are requested simultaneously (the browser multiplexes across its
+// per-host connection limit on its own). Download is pure I/O — no main-thread
+// work — so concurrency is safe and fast. Each download's byte progress is
+// buffered and flushed to the store in a single batched update.
+//
+// OBJLoader.parse, by contrast, is synchronous and blocks the main thread for
+// multiple seconds on a 50MB mesh. If two parses ran at once the main thread
+// would stall and the browser would abort in-flight fetches. So finished
+// downloads are pushed to a serial parse queue; each parse yields to the
+// browser before and after so frames and pending downloads can progress.
+//
+// Parsed groups are mounted incrementally — the campus visibly grows as tiles
+// finish. A frozen centering offset (computed once) ensures tiles added later
+// land in their correct world positions without shifting the view.
 export function TileModels() {
   const [tiles, setTiles] = useState<THREE.Group[]>([])
+  const [center, setCenter] = useState<[number, number, number]>([0, 0, 0])
   const groupRef = useRef<THREE.Group>(null)
+  const centeredRef = useRef(false)
 
-  const setProgress = useSceneStore((s) => s.setProgress)
+  const isLoaded = useSceneStore((s) => s.isLoaded)
+  const initTiles = useSceneStore((s) => s.initTiles)
+  const setTileDownloading = useSceneStore((s) => s.setTileDownloading)
+  const setTileDownloaded = useSceneStore((s) => s.setTileDownloaded)
+  const setTileParsing = useSceneStore((s) => s.setTileParsing)
+  const setTileReady = useSceneStore((s) => s.setTileReady)
+  const setTileError = useSceneStore((s) => s.setTileError)
+  const batchSetProgress = useSceneStore((s) => s.batchSetProgress)
   const setLoaded = useSceneStore((s) => s.setLoaded)
   const setLoadError = useSceneStore((s) => s.setLoadError)
-  const setActiveTile = useSceneStore((s) => s.setActiveTile)
-  const setActiveTileProgress = useSceneStore((s) => s.setActiveTileProgress)
 
-  // Queue-based loader. Concurrency is deliberately 1: OBJLoader parses each
-  // large OBJ synchronously on the main thread (multi-second blocks). With >1
-  // worker, while one tile is parsing the main thread is blocked and the
-  // browser starves/aborts the other in-flight fetches (net::ERR_ABORTED).
-  // Serial download→parse guarantees no fetch is in flight during a parse.
-  // A tile failing its retries does NOT cascade; a second pass retries fails.
   useEffect(() => {
     let cancelled = false
-    let loaded = 0
-    const collected: THREE.Group[] = new Array(TILE_NAMES.length)
-    const LIMIT = 1
+    const names = TILE_NAMES as readonly string[]
+    initTiles([...names])
 
-    async function runPass(indices: number[]): Promise<number[]> {
-      const stillFailed: number[] = []
-      let cursor = 0
-      async function worker() {
-        while (cursor < indices.length) {
-          const i = indices[cursor++]
-          try {
-            setActiveTile(TILE_NAMES[i])
-            // Throttle byte-progress updates: a 50MB OBJ yields hundreds of
-            // chunks per second, each would trigger a store render. 100ms gate
-            // keeps the UI smooth; the final 100% chunk always passes through.
-            let lastByteUpdate = 0
-            const g = await loadTile(TILE_NAMES[i], (received, total) => {
-              if (cancelled) return
-              const now = performance.now()
-              if (received < total && now - lastByteUpdate < 100) return
-              lastByteUpdate = now
-              setActiveTileProgress(received, total)
-            })
-            if (cancelled) return
-            collected[i] = g
-            loaded += 1
-            if (!cancelled) setProgress(loaded, TILE_NAMES.length)
-          } catch {
-            if (cancelled) return
-            stillFailed.push(i)
-          }
-        }
+    // Throttled byte-progress buffer shared by all concurrent downloads.
+    const progressBuf: Record<string, { received: number; total: number }> = {}
+    const flushId = window.setInterval(() => {
+      const keys = Object.keys(progressBuf)
+      if (keys.length === 0) return
+      const snapshot: Record<string, { received: number; total: number }> = {}
+      for (const k of keys) {
+        snapshot[k] = progressBuf[k]
+        delete progressBuf[k]
       }
-      await Promise.all(
-        Array.from({ length: Math.min(LIMIT, indices.length) }, () => worker()),
-      )
-      return stillFailed
+      batchSetProgress(snapshot)
+    }, PROGRESS_FLUSH_MS)
+
+    // Serial parse queue — see header comment for why parsing must not overlap.
+    const parseQueue: { name: string; texts: TileTexts }[] = []
+    let parsing = false
+    let settled = 0 // tiles that reached a terminal state (ready or error)
+
+    const maybeFinish = () => {
+      if (cancelled) return
+      // Auto-enter the page when every tile has settled, in case the user
+      // never hit SKIP. setLoaded is idempotent if they did.
+      if (settled >= names.length) setLoaded()
     }
 
-    (async () => {
-      const all = TILE_NAMES.map((_, i) => i)
-      let failed = await runPass(all)
-      // Recovery pass: by now most connections are idle, so retries that
-      // aborted under contention earlier usually succeed.
-      if (!cancelled && failed.length > 0) {
-        failed = await runPass(failed)
+    const drainParse = async () => {
+      if (parsing) return
+      parsing = true
+      while (parseQueue.length > 0 && !cancelled) {
+        const item = parseQueue.shift()!
+        setTileParsing(item.name)
+        // Yield before the heavy synchronous parse so pending renders and
+        // download-progress flushes can land first.
+        await new Promise((r) => setTimeout(r, 0))
+        if (cancelled) return
+        try {
+          const g = parseTile(item.name, item.texts)
+          if (cancelled) return
+          // Incremental mount — the campus grows as each tile finishes parsing.
+          setTiles((prev) => [...prev, g])
+          setTileReady(item.name)
+        } catch (e) {
+          console.warn(`[tiles] parse failed for ${item.name}:`, e)
+          setTileError(item.name)
+        }
+        settled += 1
+        // Yield after parse so the frame can paint the new geometry before the
+        // next parse blocks the main thread again.
+        await new Promise((r) => setTimeout(r, 0))
       }
-      if (cancelled) return
-      const got = collected.filter(Boolean)
-      if (got.length === 0) {
-        setLoadError(
-          `${failed.length} tile(s) failed to load: ${failed.map((i) => TILE_NAMES[i]).join(', ')}`,
-        )
-        return
+      parsing = false
+      maybeFinish()
+    }
+
+    const enqueueParse = (name: string, texts: TileTexts) => {
+      parseQueue.push({ name, texts })
+      void drainParse()
+    }
+
+    // Fire every download at once — no client-side concurrency limit.
+    const downloadTasks = names.map(async (name) => {
+      setTileDownloading(name)
+      try {
+        const texts = await downloadTileTexts(name, (received, total) => {
+          if (cancelled) return
+          progressBuf[name] = { received, total }
+        })
+        if (cancelled) return
+        // Pin this tile to 100% so the UI doesn't lag the flush interval.
+        const full = texts.obj.length + texts.mtl.length
+        progressBuf[name] = { received: full, total: full }
+        setTileDownloaded(name)
+        enqueueParse(name, texts)
+      } catch (e) {
+        if (cancelled) return
+        console.warn(`[tiles] download failed for ${name}:`, e)
+        setTileError(name)
+        settled += 1
+        maybeFinish()
       }
-      if (failed.length > 0) {
-        // Partial load: surface a non-fatal note but still render what we have.
-        console.warn(`[tiles] ${failed.length} tile(s) failed:`, failed.map((i) => TILE_NAMES[i]))
-      }
-      setTiles(got)
-    })()
+    })
+
+    Promise.all(downloadTasks).catch((e) => {
+      if (!cancelled) setLoadError(`Download error: ${(e as Error)?.message ?? e}`)
+    })
 
     return () => {
       cancelled = true
+      window.clearInterval(flushId)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [
+    initTiles,
+    setTileDownloading,
+    setTileDownloaded,
+    setTileParsing,
+    setTileReady,
+    setTileError,
+    batchSetProgress,
+    setLoaded,
+    setLoadError,
+  ])
 
-  // Once tiles are rendered into the group, recenter the assembled model so
-  // the campus sits at the origin with ground at y=0, then mark as loaded.
+  // Compute the centering offset ONCE, then freeze it. All tiles share the OBJ
+  // world coordinate frame, so tiles mounted after the freeze inherit the same
+  // group transform and land in their correct relative positions — the view
+  // never jumps as new geometry streams in. Centering triggers as soon as
+  // CENTER_THRESHOLD tiles are mounted (for a stable estimate) or when the user
+  // enters the page, whichever comes first.
   useEffect(() => {
-    if (tiles.length === 0 || !groupRef.current) return
+    if (centeredRef.current) return
+    if (!groupRef.current || tiles.length === 0) return
+    if (tiles.length < CENTER_THRESHOLD && !isLoaded) return
+
     const grp = groupRef.current
-
-    // OBJ ENU coords are Z-up; rotate so height maps to three.js Y-up.
-    grp.rotation.set(-Math.PI / 2, 0, 0)
-    grp.position.set(0, 0, 0)
     grp.updateWorldMatrix(true, true)
-
-    // Ensure every geometry has bounding data for accurate Box3 / culling.
     grp.traverse((c) => {
       const m = c as THREE.Mesh
       if (m.isMesh && m.geometry) m.geometry.computeBoundingBox()
     })
-
     const box = new THREE.Box3().setFromObject(grp)
-    const center = new THREE.Vector3()
-    box.getCenter(center)
+    const c = new THREE.Vector3()
+    box.getCenter(c)
     // Center horizontally and drop ground to y = 0.
-    grp.position.set(-center.x, -box.min.y, -center.z)
-    grp.updateWorldMatrix(true, true)
-
-    setLoaded()
-  }, [tiles, setLoaded])
+    setCenter([-c.x, -box.min.y, -c.z])
+    centeredRef.current = true
+  }, [tiles, isLoaded])
 
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} rotation={[-Math.PI / 2, 0, 0]} position={center}>
       {tiles.map((g) => (
         <primitive key={g.name} object={g} />
       ))}

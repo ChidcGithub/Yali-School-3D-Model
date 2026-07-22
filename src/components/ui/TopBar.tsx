@@ -8,7 +8,13 @@ export function TopBar() {
   const atmosphere = useSceneStore((s) => s.atmosphere)
   const toggleAtmosphere = useSceneStore((s) => s.toggleAtmosphere)
   const fps = useSceneStore((s) => s.fps)
-  const loaded = useSceneStore((s) => s.loadedTiles)
+  // Count ready tiles — primitive return so TopBar only re-renders when the
+  // count actually changes, not on every byte-progress flush.
+  const loaded = useSceneStore((s) => {
+    let c = 0
+    for (const p of Object.values(s.tileProgress)) if (p.status === 'ready') c++
+    return c
+  })
 
   return (
     <div className="pointer-events-none absolute left-0 right-0 top-0 z-30 flex items-stretch justify-between p-2">
