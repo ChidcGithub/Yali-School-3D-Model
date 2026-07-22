@@ -44,9 +44,6 @@ let activeTileBase = ORIGIN_BASE
 export function getTileBase(): string {
   return activeTileBase
 }
-export function setTileBase(base: string): void {
-  activeTileBase = base
-}
 // Build the tile base from a user-entered proxy prefix. Empty string = origin.
 export function setTileBaseFromProxy(proxyPrefix: string): void {
   const trimmed = proxyPrefix.trim()
@@ -161,6 +158,10 @@ function setCachedText(url: string, text: string): void {
 export interface TileTexts {
   mtl: string
   obj: string
+  // The base URL that successfully downloaded these files. parseTile uses it
+  // as the resource path for texture loading so textures come from the same
+  // source that delivered the mesh (not a dead proxy).
+  base: string
 }
 
 // Downloads .mtl + .obj text for a tile, persisting to the Cache API so the
@@ -171,48 +172,76 @@ export interface TileTexts {
 // Download and parse are deliberately separate: this function only fetches
 // text, so all 18 tiles can download concurrently without main-thread parse
 // work blocking the network. Parsing happens later, serially, in parseTile.
+//
+// Fallback: if a proxy is set and the fetch fails (common with flaky mirrors),
+// the retry automatically falls back to the origin URL so a bad proxy never
+// hard-blocks loading — it just slows it down.
 export async function downloadTileTexts(
   tileName: string,
   onProgress?: (received: number, total: number) => void,
 ): Promise<TileTexts> {
-  return withRetry(tileName, async () => {
-    const dir = `${getTileBase()}/${tileName}`
-    const mtlUrl = `${dir}/${tileName}.mtl`
-    const objUrl = `${dir}/${tileName}.obj`
+  // Build the candidate base URLs: proxy first (if set), then origin as the
+  // fallback. Each retry advances to the next candidate.
+  const proxyBase = getTileBase()
+  const candidates = proxyBase === ORIGIN_BASE ? [ORIGIN_BASE] : [proxyBase, ORIGIN_BASE]
 
-    // Check cache for both files first — a full hit skips the network entirely.
-    const [cachedMtl, cachedObj] = await Promise.all([getCachedText(mtlUrl), getCachedText(objUrl)])
-    if (cachedMtl != null && cachedObj != null) {
-      const total = cachedMtl.length + cachedObj.length
-      onProgress?.(total, total)
-      return { mtl: cachedMtl, obj: cachedObj }
+  let lastErr: unknown
+  for (let ci = 0; ci < candidates.length; ci++) {
+    const base = candidates[ci]
+    const isLastCandidate = ci === candidates.length - 1
+    try {
+      return await withRetry(
+        `${tileName}${candidates.length > 1 ? ` (${base === ORIGIN_BASE ? 'origin' : 'proxy'})` : ''}`,
+        async () => {
+          const dir = `${base}/${tileName}`
+          const mtlUrl = `${dir}/${tileName}.mtl`
+          const objUrl = `${dir}/${tileName}.obj`
+
+          // Check cache for both files first — a full hit skips the network.
+          const [cachedMtl, cachedObj] = await Promise.all([getCachedText(mtlUrl), getCachedText(objUrl)])
+          if (cachedMtl != null && cachedObj != null) {
+            const total = cachedMtl.length + cachedObj.length
+            onProgress?.(total, total)
+            return { mtl: cachedMtl, obj: cachedObj, base }
+          }
+
+          // .mtl is tiny — fetch without progress, cache if fetched fresh.
+          let mtlText: string
+          if (cachedMtl != null) {
+            mtlText = cachedMtl
+          } else {
+            mtlText = await fetchTextWithProgress(mtlUrl)
+            setCachedText(mtlUrl, mtlText)
+          }
+
+          // .obj is the big one — stream it for byte-level progress, cache after.
+          let objText: string
+          if (cachedObj != null) {
+            objText = cachedObj
+            const total = mtlText.length + objText.length
+            onProgress?.(total, total)
+          } else {
+            objText = await fetchTextWithProgress(objUrl, (received, total) => {
+              onProgress?.(received, total)
+            })
+            setCachedText(objUrl, objText)
+          }
+
+          return { mtl: mtlText, obj: objText, base }
+        },
+        // Fewer retries per candidate when there's a fallback available, so we
+        // don't waste time hammering a dead proxy before moving to origin.
+        isLastCandidate ? 5 : 2,
+        500,
+      )
+    } catch (e) {
+      lastErr = e
+      if (!isLastCandidate) {
+        console.warn(`[tiles] ${tileName}: proxy failed, falling back to origin`)
+      }
     }
-
-    // .mtl is tiny — fetch without progress, cache if we fetched it fresh.
-    let mtlText: string
-    if (cachedMtl != null) {
-      mtlText = cachedMtl
-    } else {
-      mtlText = await fetchTextWithProgress(mtlUrl)
-      setCachedText(mtlUrl, mtlText)
-    }
-
-    // .obj is the big one — stream it for byte-level progress, cache after.
-    let objText: string
-    if (cachedObj != null) {
-      objText = cachedObj
-      const total = mtlText.length + objText.length
-      onProgress?.(total, total)
-    } else {
-      objText = await fetchTextWithProgress(objUrl, (received, total) => {
-        // mtl is negligible; report obj bytes directly as the tile's progress.
-        onProgress?.(received, total)
-      })
-      setCachedText(objUrl, objText)
-    }
-
-    return { mtl: mtlText, obj: objText }
-  })
+  }
+  throw lastErr
 }
 
 // Parses already-downloaded tile text into a THREE.Group. OBJLoader.parse runs
@@ -220,7 +249,9 @@ export async function downloadTileTexts(
 // callers MUST run this serially — never parse two tiles at once, or the main
 // thread stalls and in-flight fetches can be aborted by the browser.
 export function parseTile(tileName: string, texts: TileTexts): THREE.Group {
-  const dir = `${getTileBase()}/${tileName}`
+  // Use the base that actually delivered the files, so textures resolve to
+  // the same source (not a dead proxy that fell back to origin for the mesh).
+  const dir = `${texts.base}/${tileName}`
   const mtlLoader = new MTLLoader()
   mtlLoader.setResourcePath(`${dir}/`)
   const materials = mtlLoader.parse(texts.mtl, `${dir}/`)
