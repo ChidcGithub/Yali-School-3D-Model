@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ModelMetadata version="1">
+    <!--Spatial Reference System-->
+    <SRS>ENU:28.1721900000,112.9845800000</SRS>
+    <!--Origin in Spatial Reference System-->
+    <SRSOrigin>-444.000000,-510.000000,28.000000</SRSOrigin>
+</ModelMetadata>

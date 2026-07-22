@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: dark;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: #0E0F13;
+  color: #E7E7EA;
+  overflow: hidden;
+}
+
+/* Custom thin scrollbar for panels */
+.scroll-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: rgba(232, 163, 61, 0.35);
+  border-radius: 2px;
+}
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(232, 163, 61, 0.6);
+}
+
+/* Faint survey-grid texture overlay used on loading screen */
+.survey-grid {
+  background-image:
+    linear-gradient(rgba(232, 163, 61, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 163, 61, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.glass {
+  background: rgba(21, 23, 29, 0.72);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  border: 1px solid rgba(168, 168, 174, 0.12);
+}
+
+.hairline {
+  border-color: rgba(168, 168, 174, 0.14);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
