@@ -12,6 +12,8 @@ export function TileModels() {
   const setProgress = useSceneStore((s) => s.setProgress)
   const setLoaded = useSceneStore((s) => s.setLoaded)
   const setLoadError = useSceneStore((s) => s.setLoadError)
+  const setActiveTile = useSceneStore((s) => s.setActiveTile)
+  const setActiveTileProgress = useSceneStore((s) => s.setActiveTileProgress)
 
   // Queue-based loader. Concurrency is deliberately 1: OBJLoader parses each
   // large OBJ synchronously on the main thread (multi-second blocks). With >1
@@ -32,7 +34,18 @@ export function TileModels() {
         while (cursor < indices.length) {
           const i = indices[cursor++]
           try {
-            const g = await loadTile(TILE_NAMES[i])
+            setActiveTile(TILE_NAMES[i])
+            // Throttle byte-progress updates: a 50MB OBJ yields hundreds of
+            // chunks per second, each would trigger a store render. 100ms gate
+            // keeps the UI smooth; the final 100% chunk always passes through.
+            let lastByteUpdate = 0
+            const g = await loadTile(TILE_NAMES[i], (received, total) => {
+              if (cancelled) return
+              const now = performance.now()
+              if (received < total && now - lastByteUpdate < 100) return
+              lastByteUpdate = now
+              setActiveTileProgress(received, total)
+            })
             if (cancelled) return
             collected[i] = g
             loaded += 1

@@ -57,13 +57,41 @@ async function withRetry<T>(label: string, fn: () => Promise<T>, retries = 5, de
 // (the dev server sends Cache-Control: no-cache + ETag, whose conditional
 // 304 path interacts badly with three's FileLoader under load). Every fetch is
 // a fresh, unconditional 200 so retries are real downloads, not cached stubs.
-async function fetchText(url: string): Promise<string> {
+// When onProgress is supplied and Content-Length is known, the response body is
+// streamed so the caller can report byte-level download progress.
+async function fetchText(
+  url: string,
+  onProgress?: (received: number, total: number) => void,
+): Promise<string> {
   const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`)
-  return res.text()
+  const total = Number(res.headers.get('Content-Length')) || 0
+  if (!onProgress || !res.body || total === 0) {
+    return res.text()
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  const chunks: Uint8Array[] = []
+  let received = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (value) {
+      chunks.push(value)
+      received += value.length
+      onProgress(received, total)
+    }
+  }
+  let text = ''
+  for (const c of chunks) text += decoder.decode(c, { stream: true })
+  text += decoder.decode() // flush
+  return text
 }
 
-export async function loadTile(tileName: string): Promise<THREE.Group> {
+export async function loadTile(
+  tileName: string,
+  onProgress?: (received: number, total: number) => void,
+): Promise<THREE.Group> {
   return withRetry(tileName, async () => {
     const dir = `${TILE_BASE}/${tileName}`
 
@@ -73,7 +101,8 @@ export async function loadTile(tileName: string): Promise<THREE.Group> {
     const materials = mtlLoader.parse(mtlText, `${dir}/`)
     materials.preload()
 
-    const objText = await fetchText(`${dir}/${tileName}.obj`)
+    // The .obj is the dominant payload (tens of MB); stream it for byte progress.
+    const objText = await fetchText(`${dir}/${tileName}.obj`, onProgress)
     const objLoader = new OBJLoader()
     objLoader.setMaterials(materials)
     const group = objLoader.parse(objText)

@@ -9,6 +9,11 @@ interface SceneState {
   isLoaded: boolean
   loadError: string | null
 
+  // Currently-downloading tile's byte-level progress (serial loader → one at a time).
+  activeTileName: string | null
+  activeTileBytes: number
+  activeTileTotalBytes: number
+
   atmosphere: Atmosphere
   showHints: boolean
   fps: number
@@ -17,6 +22,8 @@ interface SceneState {
   setProgress: (loaded: number, total: number) => void
   setLoaded: () => void
   setLoadError: (msg: string) => void
+  setActiveTile: (name: string | null) => void
+  setActiveTileProgress: (received: number, total: number) => void
   setAtmosphere: (a: Atmosphere) => void
   toggleAtmosphere: () => void
   dismissHints: () => void
@@ -30,6 +37,10 @@ export const useSceneStore = create<SceneState>((set) => ({
   isLoaded: false,
   loadError: null,
 
+  activeTileName: null,
+  activeTileBytes: 0,
+  activeTileTotalBytes: 0,
+
   atmosphere: 'day',
   showHints: true,
   fps: 0,
@@ -37,9 +48,15 @@ export const useSceneStore = create<SceneState>((set) => ({
   setProgress: (loaded, total) =>
     set({ loadedTiles: loaded, totalTiles: total, loadingProgress: total ? (loaded / total) * 100 : 0 }),
 
-  setLoaded: () => set({ isLoaded: true }),
+  setLoaded: () => set({ isLoaded: true, activeTileName: null }),
 
   setLoadError: (msg) => set({ loadError: msg }),
+
+  setActiveTile: (name) =>
+    set({ activeTileName: name, activeTileBytes: 0, activeTileTotalBytes: 0 }),
+
+  setActiveTileProgress: (received, total) =>
+    set({ activeTileBytes: received, activeTileTotalBytes: total }),
 
   setAtmosphere: (a) => set({ atmosphere: a }),
   toggleAtmosphere: () => set((s) => ({ atmosphere: s.atmosphere === 'day' ? 'dusk' : 'day' })),
