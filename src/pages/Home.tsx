@@ -11,15 +11,6 @@ export default function Home() {
         <CampusScene />
       </div>
 
-      {/* Subtle vignette for mood & legibility of overlays */}
-      <div
-        className="pointer-events-none absolute inset-0 z-10"
-        style={{
-          background:
-            'radial-gradient(ellipse at center, transparent 55%, rgba(14,15,19,0.45) 100%)',
-        }}
-      />
-
       {/* UI overlays */}
       <TopBar />
       <ControlHints />

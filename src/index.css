@@ -2,9 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Metro dark base — pure black, Segoe UI, no decorative texture. */
 :root {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  line-height: 1.5;
+  font-family: "Segoe UI", "Segoe UI Variable Text", system-ui, -apple-system, sans-serif;
+  line-height: 1.45;
   font-weight: 400;
   color-scheme: dark;
 
@@ -19,12 +20,23 @@ body,
 #root {
   height: 100%;
   margin: 0;
-  background: #0E0F13;
-  color: #E7E7EA;
+  background: #000000;
+  color: #FFFFFF;
   overflow: hidden;
 }
 
-/* Custom thin scrollbar for panels */
+/* Metro tiles are flat solid rectangles: no blur, no gradient, no shadow.
+   A 2px black gap between tiles replaces borders (the canvas shows through). */
+.metro-tile {
+  background: #1A1A1A;
+}
+
+.metro-tile-accent {
+  background: #E8A33D;
+  color: #000000;
+}
+
+/* Thin Metro scrollbar — amber accent on transparent track. */
 .scroll-thin::-webkit-scrollbar {
   width: 4px;
 }
@@ -32,30 +44,36 @@ body,
   background: transparent;
 }
 .scroll-thin::-webkit-scrollbar-thumb {
-  background: rgba(232, 163, 61, 0.35);
-  border-radius: 2px;
+  background: rgba(232, 163, 61, 0.45);
 }
 .scroll-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(232, 163, 61, 0.6);
+  background: rgba(232, 163, 61, 0.75);
 }
 
-/* Faint survey-grid texture overlay used on loading screen */
-.survey-grid {
-  background-image:
-    linear-gradient(rgba(232, 163, 61, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(232, 163, 61, 0.06) 1px, transparent 1px);
-  background-size: 48px 48px;
+/* Flat key cap — solid block, no 3D bevel. Used in ControlHints. */
+.key-cap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  height: 1.5rem;
+  padding: 0 0.4rem;
+  background: #E8A33D;
+  color: #000000;
+  font-family: "Cascadia Code", Consolas, "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
-.glass {
-  background: rgba(21, 23, 29, 0.72);
-  backdrop-filter: blur(14px) saturate(120%);
-  -webkit-backdrop-filter: blur(14px) saturate(120%);
-  border: 1px solid rgba(168, 168, 174, 0.12);
-}
-
-.hairline {
-  border-color: rgba(168, 168, 174, 0.14);
+/* Metro accent bar — the left-edge selection indicator from Windows 8. */
+.accent-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #E8A33D;
 }
 
 .text-balance {

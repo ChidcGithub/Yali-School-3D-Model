@@ -13,7 +13,7 @@ export function CampusScene() {
       dpr={[1, 2]}
       camera={{ fov: 50, near: 0.5, far: 6000, position: [420, 320, 460] }}
       onCreated={({ gl }) => {
-        gl.setClearColor('#C9D2DA')
+        gl.setClearColor('#000000')
       }}
     >
       <Suspense fallback={null}>
