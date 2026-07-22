@@ -118,33 +118,6 @@ async function fetchTextWithProgress(
   return text
 }
 
-// Binary variant of fetchTextWithProgress for texture JPEGs. Same streaming
-// approach but collects into a Blob instead of a string.
-async function fetchBlobWithProgress(
-  url: string,
-  onProgress?: (received: number, total: number) => void,
-): Promise<Blob> {
-  const res = await fetch(url, { cache: 'no-store' })
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`)
-  const total = Number(res.headers.get('Content-Length')) || 0
-  if (!onProgress || !res.body || total === 0) {
-    return res.blob()
-  }
-  const reader = res.body.getReader()
-  const chunks: Uint8Array[] = []
-  let received = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    if (value) {
-      chunks.push(value)
-      received += value.length
-      onProgress(received, total)
-    }
-  }
-  return new Blob(chunks, { type: 'image/jpeg' })
-}
-
 // Cache API helpers. Failures (quota exceeded, private mode, etc.) are silent:
 // we fall back to a normal network fetch, so caching is a pure optimization.
 //
@@ -172,17 +145,6 @@ async function getCachedText(url: string): Promise<string | null> {
   }
 }
 
-async function getCachedBlob(url: string): Promise<Blob | null> {
-  const cache = await getCache()
-  if (!cache) return null
-  try {
-    const cached = await cache.match(url)
-    return cached ? await cached.blob() : null
-  } catch {
-    return null
-  }
-}
-
 // Fire-and-forget: writes to the cache in the background so it never blocks the
 // download → parse → mount pipeline. Errors are swallowed.
 function setCachedText(url: string, text: string): void {
@@ -193,65 +155,22 @@ function setCachedText(url: string, text: string): void {
   })
 }
 
-function setCachedBlob(url: string, blob: Blob): void {
-  void getCache().then((cache) => {
-    if (!cache) return
-    const res = new Response(blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' } })
-    cache.put(url, res).catch(() => {})
-  })
-}
-
-// Extract texture filenames referenced by an MTL file. Handles map_Kd, map_Ka,
-// map_bump, bump, and any other map_* directive. Returns basenames only (strips
-// any leading path component, since the texture lives alongside the .mtl).
-function extractTextureNames(mtlText: string): string[] {
-  const names = new Set<string>()
-  const re = /^(?:map_\w+|bump)\s+(.+)$/gm
-  let m: RegExpExecArray | null
-  while ((m = re.exec(mtlText)) !== null) {
-    const raw = m[1].trim().replace(/^["']|["']$/g, '')
-    // Take the basename — textures sit next to the .mtl in the tile directory.
-    const base = raw.split(/[/\\]/).pop() || raw
-    if (base) names.add(base)
-  }
-  return [...names]
-}
-
-// Rewrite map_* paths in the MTL text to point at preloaded ObjectURLs. This
-// lets MTLLoader create textures from local blobs instantly — no network, no
-// async ImageLoader, no missing-texture flash when the user enters the scene.
-function rewriteMtlTexturePaths(mtlText: string, textures: Record<string, string>): string {
-  return mtlText.replace(
-    /^((?:map_\w+|bump)\s+)(.+)$/gm,
-    (match, prefix: string, filename: string) => {
-      const name = filename.trim().replace(/^["']|["']$/g, '')
-      const base = name.split(/[/\\]/).pop() || name
-      if (textures[base]) return `${prefix}${textures[base]}`
-      return match
-    },
-  )
-}
-
 export interface TileTexts {
   mtl: string
   obj: string
   // The base URL that successfully downloaded these files. parseTile uses it
-  // as the resource path for any textures NOT preloaded (fallback only).
+  // as the resource path for texture loading so textures come from the same
+  // source that delivered the mesh (not a dead proxy).
   base: string
-  // Map of original texture filename -> ObjectURL for the preloaded texture
-  // blob. parseTile rewrites the MTL to point at these so textures load from
-  // local memory instead of the network.
-  textures: Record<string, string>
 }
 
-// Downloads .mtl + .obj + all referenced texture JPEGs for a tile, persisting
-// to the Cache API so the next visit loads from disk. The .obj and textures
-// are the dominant payloads, so their combined byte progress is forwarded to
-// onProgress; the .mtl is a few hundred bytes and not worth streaming. Cache
-// hits resolve instantly and report 100%.
+// Downloads .mtl + .obj text for a tile, persisting to the Cache API so the
+// next visit loads from disk. The .obj is the dominant payload (tens of MB),
+// so its byte progress is forwarded to onProgress; the .mtl is a few hundred
+// bytes and not worth streaming. Cache hits resolve instantly and report 100%.
 //
 // Download and parse are deliberately separate: this function only fetches
-// data, so all 18 tiles can download concurrently without main-thread parse
+// text, so all 18 tiles can download concurrently without main-thread parse
 // work blocking the network. Parsing happens later, serially, in parseTile.
 //
 // Fallback: if a proxy is set and the fetch fails (common with flaky mirrors),
@@ -278,10 +197,16 @@ export async function downloadTileTexts(
           const mtlUrl = `${dir}/${tileName}.mtl`
           const objUrl = `${dir}/${tileName}.obj`
 
-          // --- Step 1: get the .mtl (tiny, no progress needed) ---
-          // Needed first because it tells us which texture files to download.
+          // Check cache for both files first — a full hit skips the network.
+          const [cachedMtl, cachedObj] = await Promise.all([getCachedText(mtlUrl), getCachedText(objUrl)])
+          if (cachedMtl != null && cachedObj != null) {
+            const total = cachedMtl.length + cachedObj.length
+            onProgress?.(total, total)
+            return { mtl: cachedMtl, obj: cachedObj, base }
+          }
+
+          // .mtl is tiny — fetch without progress, cache if fetched fresh.
           let mtlText: string
-          const cachedMtl = await getCachedText(mtlUrl)
           if (cachedMtl != null) {
             mtlText = cachedMtl
           } else {
@@ -289,97 +214,20 @@ export async function downloadTileTexts(
             setCachedText(mtlUrl, mtlText)
           }
 
-          const textureNames = extractTextureNames(mtlText)
-          const texUrls = textureNames.map((n) => `${dir}/${n}`)
-
-          // --- Step 2: check cache for obj + all textures ---
-          const [cachedObj, ...cachedTexBlobs] = await Promise.all([
-            getCachedText(objUrl),
-            ...texUrls.map((u) => getCachedBlob(u)),
-          ])
-
-          // Full cache hit — skip all network.
-          if (
-            cachedObj != null &&
-            cachedTexBlobs.every((b) => b != null)
-          ) {
-            const textures: Record<string, string> = {}
-            for (let i = 0; i < textureNames.length; i++) {
-              textures[textureNames[i]] = URL.createObjectURL(cachedTexBlobs[i]!)
-            }
-            const total = cachedObj.length
+          // .obj is the big one — stream it for byte-level progress, cache after.
+          let objText: string
+          if (cachedObj != null) {
+            objText = cachedObj
+            const total = mtlText.length + objText.length
             onProgress?.(total, total)
-            return { mtl: mtlText, obj: cachedObj, base, textures }
+          } else {
+            objText = await fetchTextWithProgress(objUrl, (received, total) => {
+              onProgress?.(received, total)
+            })
+            setCachedText(objUrl, objText)
           }
 
-          // --- Step 3: concurrently download obj + missing textures ---
-          // Build the download task list: obj (text) + each missing texture (blob).
-          type Task =
-            | { kind: 'obj'; url: string }
-            | { kind: 'tex'; url: string; name: string }
-          const tasks: Task[] = []
-          if (cachedObj == null) tasks.push({ kind: 'obj', url: objUrl })
-          for (let i = 0; i < textureNames.length; i++) {
-            if (cachedTexBlobs[i] == null) {
-              tasks.push({ kind: 'tex', url: texUrls[i], name: textureNames[i] })
-            }
-          }
-
-          // Track combined byte progress across all concurrent downloads.
-          const progState: { received: number; total: number }[] = new Array(tasks.length).fill(0).map(() => ({ received: 0, total: 0 }))
-          const flushProgress = () => {
-            let received = 0
-            let total = 0
-            for (const p of progState) {
-              received += p.received
-              total += p.total
-            }
-            onProgress?.(received, total)
-          }
-
-          const results = await Promise.all(
-            tasks.map(async (task, i) => {
-              if (task.kind === 'obj') {
-                const text = await fetchTextWithProgress(task.url, (r, t) => {
-                  progState[i] = { received: r, total: t }
-                  flushProgress()
-                })
-                setCachedText(task.url, text)
-                return { kind: 'obj' as const, text }
-              } else {
-                const blob = await fetchBlobWithProgress(task.url, (r, t) => {
-                  progState[i] = { received: r, total: t }
-                  flushProgress()
-                })
-                setCachedBlob(task.url, blob)
-                return { kind: 'tex' as const, name: task.name, blob }
-              }
-            }),
-          )
-
-          // --- Assemble final TileTexts ---
-          const objText =
-            cachedObj != null
-              ? cachedObj
-              : (results.find((r) => r.kind === 'obj') as { text: string } | undefined)?.text ?? ''
-          const textures: Record<string, string> = {}
-          // From fresh downloads
-          for (const r of results) {
-            if (r.kind === 'tex') textures[r.name] = URL.createObjectURL(r.blob)
-          }
-          // From cache
-          for (let i = 0; i < textureNames.length; i++) {
-            if (cachedTexBlobs[i] != null && !textures[textureNames[i]]) {
-              textures[textureNames[i]] = URL.createObjectURL(cachedTexBlobs[i]!)
-            }
-          }
-
-          // Pin to 100%
-          let totalSize = objText.length
-          for (const p of progState) totalSize = Math.max(totalSize, p.total)
-          onProgress?.(totalSize, totalSize)
-
-          return { mtl: mtlText, obj: objText, base, textures }
+          return { mtl: mtlText, obj: objText, base }
         },
         // Fewer retries per candidate when there's a fallback available, so we
         // don't waste time hammering a dead proxy before moving to origin.
@@ -401,17 +249,12 @@ export async function downloadTileTexts(
 // callers MUST run this serially — never parse two tiles at once, or the main
 // thread stalls and in-flight fetches can be aborted by the browser.
 export function parseTile(tileName: string, texts: TileTexts): THREE.Group {
-  // Rewrite map_* paths in the MTL to point at preloaded ObjectURLs so
-  // MTLLoader creates textures from local blobs — no network, no flash.
-  const mtlText = Object.keys(texts.textures).length > 0
-    ? rewriteMtlTexturePaths(texts.mtl, texts.textures)
-    : texts.mtl
-
+  // Use the base that actually delivered the files, so textures resolve to
+  // the same source (not a dead proxy that fell back to origin for the mesh).
   const dir = `${texts.base}/${tileName}`
   const mtlLoader = new MTLLoader()
-  // Fallback resource path in case a texture wasn't preloaded.
   mtlLoader.setResourcePath(`${dir}/`)
-  const materials = mtlLoader.parse(mtlText, `${dir}/`)
+  const materials = mtlLoader.parse(texts.mtl, `${dir}/`)
   materials.preload()
 
   const objLoader = new OBJLoader()
