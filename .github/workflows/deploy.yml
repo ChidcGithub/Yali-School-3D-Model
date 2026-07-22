@@ -1,0 +1,60 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; queued runs wait, in-progress runs are not cancelled.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Vite serves `public/Models` through its publicDir. The repo ships
+      # `Models/` at the root (not under public/), so link it in. On Linux
+      # this is a plain symlink (the local dev setup uses a Windows junction).
+      - name: Link Models into public
+        run: ln -s ../Models public/Models
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          CI: true
+
+      # Skip Jekyll processing so Vite's asset tree is served verbatim.
+      - name: Disable Jekyll
+        run: touch dist/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

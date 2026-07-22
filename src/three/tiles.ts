@@ -24,7 +24,9 @@ export const TILE_NAMES = [
   'Tile_+003_+004',
 ] as const
 
-export const TILE_BASE = '/Models/OBJ/Data'
+// BASE_URL is '/' in dev and the repo subpath (e.g. '/Yali-School-3D-Model/')
+// when built for GitHub Pages, so model URLs resolve correctly in both.
+export const TILE_BASE = `${import.meta.env.BASE_URL}Models/OBJ/Data`
 
 // Served by Vite's publicDir via a directory junction `public/Models` -> `Models`
 // (see vite.config.ts header comment).

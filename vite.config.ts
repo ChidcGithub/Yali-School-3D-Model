@@ -28,6 +28,9 @@ function tameKeepAlive() {
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Serve from the repo subpath on GitHub Pages; root elsewhere.
+  // GITHUB_ACTIONS is set by the CI runner, so local dev/build stay on '/'.
+  base: process.env.GITHUB_ACTIONS ? '/Yali-School-3D-Model/' : '/',
   build: {
     sourcemap: 'hidden',
   },
