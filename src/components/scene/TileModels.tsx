@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { Line2 } from 'three/examples/jsm/lines/Line2'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry'
 import { useSceneStore } from '@/store/sceneStore'
 import {
   TILE_NAMES,
@@ -9,9 +13,109 @@ import {
   type TileTexts,
 } from '@/three/tiles'
 
-// Once this many tiles are mounted, the centering offset is computed and frozen
-// (also matches the SKIP button threshold in the loading screen).
-const CENTER_THRESHOLD = 3
+// TEMP: visualizes the airwall boundary as a translucent red filled box with
+// thin flowing red dashed edges. Removed once airwall values are hardcoded.
+// Two layers:
+//  1. A translucent red BoxGeometry face fill so the boundary reads as a
+//     volume (visible from any distance, not just thin lines).
+//  2. Thin (2px) flowing red dashed edges via Line2 + LineMaterial. WebGL
+//     ignores linewidth for plain LineBasicMaterial, so Line2 is required for
+//     real screen-space pixel widths. dashOffset decremented each frame so
+//     dashes flow along the edges like a scanning alert border.
+function AirwallBox({ bx, by, bz }: { bx: { min: number; max: number }; by: { min: number; max: number }; bz: { min: number; max: number } }) {
+  const { size } = useThree()
+  const center = useMemo(() => new THREE.Vector3(), [])
+  const faceRef = useRef<THREE.Mesh>(null)
+  const faceMatRef = useRef<THREE.MeshBasicMaterial>(null)
+
+  const { line2, material, geometry } = useMemo(() => {
+    const geo = new LineSegmentsGeometry()
+    const mat = new LineMaterial({
+      color: new THREE.Color('#FF1A1A'),
+      linewidth: 2, // screen pixels (thin)
+      dashed: true,
+      dashSize: 25,
+      gapSize: 15,
+      transparent: true,
+      opacity: 0.9,
+      depthTest: true,
+    })
+    mat.resolution.set(size.width, size.height)
+    const l = new Line2(geo, mat)
+    return { line2: l, material: mat, geometry: geo }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep material resolution in sync with viewport (controls linewidth scaling).
+  useEffect(() => {
+    material.resolution.set(size.width, size.height)
+  }, [size, material])
+
+  // Rebuild edge + face geometry when bounds change.
+  useEffect(() => {
+    const { min: x0, max: x1 } = bx
+    const { min: y0, max: y1 } = by
+    const { min: z0, max: z1 } = bz
+    // Face fill box
+    if (faceRef.current) {
+      faceRef.current.geometry.dispose()
+      faceRef.current.geometry = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0)
+      faceRef.current.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
+    }
+    // Edge wireframe
+    const v = [
+      [x0, y0, z0], [x1, y0, z0], [x0, y1, z0], [x1, y1, z0],
+      [x0, y0, z1], [x1, y0, z1], [x0, y1, z1], [x1, y1, z1],
+    ]
+    const edges: number[][] = [
+      [0, 1], [0, 2], [1, 3], [2, 3], // bottom
+      [4, 5], [4, 6], [5, 7], [6, 7], // top
+      [0, 4], [1, 5], [2, 6], [3, 7], // verticals
+    ]
+    const positions: number[] = []
+    for (const [a, b] of edges) positions.push(...v[a], ...v[b])
+    geometry.setPositions(positions)
+    line2.computeLineDistances()
+    center.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
+  }, [bx, by, bz, geometry, line2, center])
+
+  // Flow the dashes + slow pulse + distance fade.
+  const NEAR = 200
+  const FAR = 600
+  useFrame((state, delta) => {
+    material.dashOffset -= delta * 80
+    const t = state.clock.elapsedTime
+    const pulse = 0.8 + 0.2 * Math.sin(t * Math.PI * 2 * 0.02)
+    const dist = state.camera.position.distanceTo(center)
+    const fade = THREE.MathUtils.clamp(1 - (dist - NEAR) / (FAR - NEAR), 0, 1)
+    const o = pulse * fade
+    material.opacity = o
+    if (faceMatRef.current) faceMatRef.current.opacity = o * 0.25
+  })
+
+  useEffect(() => {
+    return () => {
+      geometry.dispose()
+      material.dispose()
+    }
+  }, [geometry, material])
+
+  return (
+    <group>
+      <mesh ref={faceRef}>
+        <meshBasicMaterial
+          ref={faceMatRef}
+          color="#FF1A1A"
+          transparent
+          opacity={0.1}
+          side={THREE.BackSide}
+          depthWrite={false}
+        />
+      </mesh>
+      <primitive object={line2} />
+    </group>
+  )
+}
+
 // Byte-progress flush cadence: 18 concurrent downloads each fire hundreds of
 // chunks/sec, so we buffer and flush to the store at most 10x/sec.
 const PROGRESS_FLUSH_MS = 100
@@ -34,13 +138,13 @@ const PROGRESS_FLUSH_MS = 100
 // land in their correct world positions without shifting the view.
 export function TileModels() {
   const [tiles, setTiles] = useState<THREE.Group[]>([])
-  const [center, setCenter] = useState<[number, number, number]>([0, 0, 0])
   const groupRef = useRef<THREE.Group>(null)
-  const centeredRef = useRef(false)
 
-  const isLoaded = useSceneStore((s) => s.isLoaded)
   const reloadKey = useSceneStore((s) => s.reloadKey)
   const proxyUrl = useSceneStore((s) => s.proxyUrl)
+  const airwallX = useSceneStore((s) => s.airwallX)
+  const airwallY = useSceneStore((s) => s.airwallY)
+  const airwallZ = useSceneStore((s) => s.airwallZ)
   const initTiles = useSceneStore((s) => s.initTiles)
   const setTileDownloading = useSceneStore((s) => s.setTileDownloading)
   const setTileDownloaded = useSceneStore((s) => s.setTileDownloaded)
@@ -58,8 +162,6 @@ export function TileModels() {
 
     // Reset local state for a clean reload.
     setTiles([])
-    setCenter([0, 0, 0])
-    centeredRef.current = false
 
     const names = TILE_NAMES as readonly string[]
     initTiles([...names])
@@ -168,36 +270,24 @@ export function TileModels() {
     setLoadError,
   ])
 
-  // Compute the centering offset ONCE, then freeze it. All tiles share the OBJ
-  // world coordinate frame, so tiles mounted after the freeze inherit the same
-  // group transform and land in their correct relative positions — the view
-  // never jumps as new geometry streams in. Centering triggers as soon as
-  // CENTER_THRESHOLD tiles are mounted (for a stable estimate) or when the user
-  // enters the page, whichever comes first.
-  useEffect(() => {
-    if (centeredRef.current) return
-    if (!groupRef.current || tiles.length === 0) return
-    if (tiles.length < CENTER_THRESHOLD && !isLoaded) return
-
-    const grp = groupRef.current
-    grp.updateWorldMatrix(true, true)
-    grp.traverse((c) => {
-      const m = c as THREE.Mesh
-      if (m.isMesh && m.geometry) m.geometry.computeBoundingBox()
-    })
-    const box = new THREE.Box3().setFromObject(grp)
-    const c = new THREE.Vector3()
-    box.getCenter(c)
-    // Center horizontally and drop ground to y = 0.
-    setCenter([-c.x, -box.min.y, -c.z])
-    centeredRef.current = true
-  }, [tiles, isLoaded])
+  // No centering — the model stays at its raw OBJ coordinates. Only the
+  // Z-up → Y-up rotation is applied. The camera initial pose and airwall
+  // bounds are authored against the model's actual world position, so any
+  // centering offset would shift the model away from where the user tuned it.
+  // The group is pinned at position [0,0,0] with rotation only.
 
   return (
-    <group ref={groupRef} rotation={[-Math.PI / 2, 0, 0]} position={center}>
-      {tiles.map((g) => (
-        <primitive key={g.name} object={g} />
-      ))}
-    </group>
+    <>
+      <group ref={groupRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+        {tiles.map((g) => (
+          <primitive key={g.name} object={g} />
+        ))}
+      </group>
+      {/* Airwall + debug markers live OUTSIDE the model group so they stay
+          fixed in world space regardless of the centering offset. The model
+          may shift during centering, but the airwall boundary does not. */}
+      <axesHelper args={[1500]} />
+      <AirwallBox bx={airwallX} by={airwallY} bz={airwallZ} />
+    </>
   )
 }

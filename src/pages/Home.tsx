@@ -3,6 +3,8 @@ import { LoadingScreen } from '@/components/ui/LoadingScreen'
 import { BackgroundProgress } from '@/components/ui/BackgroundProgress'
 import { TopBar } from '@/components/ui/TopBar'
 import { ControlHints } from '@/components/ui/ControlHints'
+import { AirwallSlider } from '@/components/ui/AirwallSlider'
+import { ResetButton } from '@/components/ui/ResetButton'
 
 export default function Home() {
   return (
@@ -17,6 +19,10 @@ export default function Home() {
       <ControlHints />
       {/* Post-skip background tile progress (left corner chevron) */}
       <BackgroundProgress />
+      <ResetButton />
+
+      {/* TEMP: airwall tuning slider */}
+      <AirwallSlider />
 
       {/* Loading screen sits above everything until assets resolve */}
       <LoadingScreen />

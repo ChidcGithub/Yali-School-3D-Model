@@ -34,6 +34,23 @@ interface SceneState {
   showHints: boolean
   fps: number
 
+  // TEMP: airwall debugging — independent min/max per axis. Once values are
+  // found they'll be hardcoded here and the slider + setter removed.
+  airwallX: { min: number; max: number }
+  airwallY: { min: number; max: number }
+  airwallZ: { min: number; max: number }
+  // Live camera + target coords for the debug panel.
+  camX: number
+  camY: number
+  camZ: number
+  tgtX: number
+  tgtY: number
+  tgtZ: number
+
+  // View reset — bumping resetKey triggers CameraRig to snap the camera and
+  // orbit target back to the canonical initial pose.
+  resetKey: number
+
   // Actions
   initTiles: (names: string[]) => void
   setTileDownloading: (name: string) => void
@@ -54,6 +71,9 @@ interface SceneState {
   toggleAtmosphere: () => void
   dismissHints: () => void
   setFps: (f: number) => void
+  setAirwall: (axis: 'x' | 'y' | 'z', value: { min: number; max: number }) => void
+  setCamDebug: (cam: { x: number; y: number; z: number }, tgt: { x: number; y: number; z: number }) => void
+  resetView: () => void
 }
 
 export const useSceneStore = create<SceneState>((set) => ({
@@ -70,6 +90,17 @@ export const useSceneStore = create<SceneState>((set) => ({
   atmosphere: 'day',
   showHints: true,
   fps: 0,
+
+  airwallX: { min: 180, max: 700 },
+  airwallY: { min: 10, max: 2000 },
+  airwallZ: { min: -770, max: -260 },
+  camX: 0,
+  camY: 0,
+  camZ: 0,
+  tgtX: 0,
+  tgtY: 0,
+  tgtZ: 0,
+  resetKey: 0,
 
   initTiles: (names) =>
     set(() => {
@@ -161,4 +192,23 @@ export const useSceneStore = create<SceneState>((set) => ({
   toggleAtmosphere: () => set((s) => ({ atmosphere: s.atmosphere === 'day' ? 'dusk' : 'day' })),
   dismissHints: () => set({ showHints: false }),
   setFps: (f) => set({ fps: f }),
+
+  setAirwall: (axis, value) =>
+    set(() => {
+      if (axis === 'x') return { airwallX: value }
+      if (axis === 'y') return { airwallY: value }
+      return { airwallZ: value }
+    }),
+
+  setCamDebug: (cam, tgt) =>
+    set({
+      camX: cam.x,
+      camY: cam.y,
+      camZ: cam.z,
+      tgtX: tgt.x,
+      tgtY: tgt.y,
+      tgtZ: tgt.z,
+    }),
+
+  resetView: () => set((s) => ({ resetKey: s.resetKey + 1 })),
 }))
