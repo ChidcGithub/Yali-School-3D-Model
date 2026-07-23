@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { useSceneStore } from '@/store/sceneStore'
 import {
   worldToGeo,
   geoToWorld,
@@ -10,7 +11,7 @@ import {
 } from '../../three/mapTiles'
 
 const MAP_Y = 25
-const ZOOM = 16
+const ZOOM = 15
 const TILE_PX = 256
 
 const MAP_X_MIN = -300
@@ -81,7 +82,6 @@ export function MapGround() {
     if (meshRef.current) {
       const mat = meshRef.current.material as THREE.MeshBasicMaterial
       mat.map = tex
-      mat.color.set('#ffffff')
       mat.needsUpdate = true
     }
     setTexReady(true)
@@ -127,6 +127,18 @@ export function MapGround() {
     }
   }, [tx0, ty0, tx1, ty1, cols, rows])
 
+  // Tint the map in dusk mode so satellite imagery doesn't look too bright.
+  const atmosphere = useSceneStore((s) => s.atmosphere)
+  useEffect(() => {
+    if (!meshRef.current) return
+    const mat = meshRef.current.material as THREE.MeshBasicMaterial
+    if (atmosphere === 'dusk') {
+      mat.color.set('#152B40')
+    } else {
+      mat.color.set('#ffffff')
+    }
+  }, [atmosphere, texReady])
+
   const pw = wx1 - wx0
   const pd = wz1 - wz0
   const cx = (wx0 + wx1) / 2
@@ -142,7 +154,7 @@ export function MapGround() {
       renderOrder={0}
     >
       <planeGeometry args={[pw, pd]} />
-      <meshBasicMaterial color="#557744" side={THREE.DoubleSide} />
+      <meshBasicMaterial side={THREE.DoubleSide} />
     </mesh>
   )
 }

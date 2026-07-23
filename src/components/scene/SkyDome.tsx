@@ -12,13 +12,13 @@ const SKY = {
     bottom: '#C9D2DA', // horizon: fog gray (= Lighting day.fog)
   },
   dusk: {
-    top: '#0A0814', // zenith: near-black purple
-    middle: '#4A3B5C', // mid-sky: dark purple (= Lighting dusk.hemiSky)
-    bottom: '#332B48', // horizon: foggy purple (= Lighting dusk.fog)
+    top: '#050A1A', // zenith: deep navy
+    middle: '#152850', // mid-sky: dark blue
+    bottom: '#0F1F38', // horizon: dark blue-gray (= Lighting dusk.fog)
   },
 } as const
 
-// Slightly under the camera far plane (6000), well over maxDistance (1800).
+// Slightly under the camera far plane (4000), well over maxDistance (1800).
 // The camera always stays near the sphere center, so the sky always covers the
 // outer field of view without breaking through the shell.
 const SKY_RADIUS = 4500
@@ -78,7 +78,7 @@ export function SkyDome() {
 
   return (
     <mesh scale={[SKY_RADIUS, SKY_RADIUS, SKY_RADIUS]} renderOrder={-1}>
-      <sphereGeometry args={[1, 32, 16]} />
+      <sphereGeometry args={[1, 64, 16]} />
       <shaderMaterial
         side={THREE.BackSide}
         fog={false}

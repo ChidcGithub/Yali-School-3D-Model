@@ -33,6 +33,7 @@ interface SceneState {
   atmosphere: Atmosphere
   showHints: boolean
   fps: number
+  pixelGranularity: number
 
   // TEMP: airwall debugging — independent min/max per axis. Once values are
   // found they'll be hardcoded here and the slider + setter removed.
@@ -74,6 +75,7 @@ interface SceneState {
   setAirwall: (axis: 'x' | 'y' | 'z', value: { min: number; max: number }) => void
   setCamDebug: (cam: { x: number; y: number; z: number }, tgt: { x: number; y: number; z: number }) => void
   resetView: () => void
+  setPixelGranularity: (g: number) => void
 }
 
 export const useSceneStore = create<SceneState>((set) => ({
@@ -90,6 +92,7 @@ export const useSceneStore = create<SceneState>((set) => ({
   atmosphere: 'day',
   showHints: true,
   fps: 0,
+  pixelGranularity: 4,
 
   airwallX: { min: 180, max: 700 },
   airwallY: { min: 10, max: 2000 },
@@ -211,4 +214,5 @@ export const useSceneStore = create<SceneState>((set) => ({
     }),
 
   resetView: () => set((s) => ({ resetKey: s.resetKey + 1 })),
+  setPixelGranularity: (g) => set({ pixelGranularity: g }),
 }))

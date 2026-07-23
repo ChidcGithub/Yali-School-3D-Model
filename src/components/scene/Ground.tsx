@@ -13,7 +13,7 @@ import { useSceneStore } from '@/store/sceneStore'
 // read as a natural ground-to-sky gradient at the horizon.
 const GROUND = {
   day: '#C9D2DA', // = SkyDome day.bottom / Lighting day.fog
-  dusk: '#332B48', // = SkyDome dusk.bottom / Lighting dusk.fog
+  dusk: '#0F1F38', // = SkyDome dusk.bottom / Lighting dusk.fog
 } as const
 
 // Slightly under the sky dome radius (4500) so the edge tucks under the sky.

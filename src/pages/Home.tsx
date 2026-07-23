@@ -4,6 +4,7 @@ import { BackgroundProgress } from '@/components/ui/BackgroundProgress'
 import { TopBar } from '@/components/ui/TopBar'
 import { ControlHints } from '@/components/ui/ControlHints'
 import { ResetButton } from '@/components/ui/ResetButton'
+import { PixelSlider } from '@/components/ui/PixelSlider'
 
 export default function Home() {
   return (
@@ -19,6 +20,7 @@ export default function Home() {
       {/* Post-skip background tile progress (left corner chevron) */}
       <BackgroundProgress />
       <ResetButton />
+      <PixelSlider />
 
       {/* Loading screen sits above everything until assets resolve */}
       <LoadingScreen />
