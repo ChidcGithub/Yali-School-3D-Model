@@ -22,11 +22,11 @@ export default {
           600: "#333333", // hairline / divider
         },
         amber: {
-          DEFAULT: "#E8A33D", // single accent
-          soft: "#F0BC6B",
-          dim: "#8A6326",
+          DEFAULT: "#223b6c", // primary accent: deep navy
+          soft: "#5074a5",    // hover / bright
+          dim: "#345c8c",     // dimmed
         },
-        fog: "#BFBFBF", // secondary text on black
+        fog: "#cfd6e0", // secondary text
       },
       fontFamily: {
         display: ['"Segoe UI"', '"Segoe UI Variable Display"', 'system-ui', 'sans-serif'],

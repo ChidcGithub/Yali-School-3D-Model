@@ -12,8 +12,8 @@ export function ResetButton() {
       aria-label="Reset view"
       title="Reset view"
     >
-      <Locate size={13} className="text-black" />
-      <span className="font-mono text-[10px] font-semibold uppercase tracking-metro text-black">
+      <Locate size={13} className="text-white" />
+      <span className="font-mono text-[10px] font-semibold uppercase tracking-metro text-white">
         RESET
       </span>
     </button>

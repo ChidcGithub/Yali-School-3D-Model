@@ -1,26 +1,19 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useSceneStore } from '@/store/sceneStore'
 
-// Sky dome: a large BackSide sphere with a three-stop top/middle/bottom gradient.
-// bottom must match Lighting's fog color so distant models fade into the sky
-// horizon seamlessly — this is the visual edge of the "distance fog" treatment.
-const SKY = {
-  day: {
-    top: '#3D5A80', // zenith: deeper blue
-    middle: '#9BB5C9', // mid-sky: pale blue
-    bottom: '#C9D2DA', // horizon: fog gray (= Lighting day.fog)
-  },
-  dusk: {
-    top: '#050A1A', // zenith: deep navy
-    middle: '#152850', // mid-sky: dark blue
-    bottom: '#0F1F38', // horizon: dark blue-gray (= Lighting dusk.fog)
-  },
-} as const
+const DAY = {
+  top: '#3D5A80',
+  middle: '#9BB5C9',
+  bottom: '#C9D2DA',
+}
 
-// Slightly under the camera far plane (4000), well over maxDistance (1800).
-// The camera always stays near the sphere center, so the sky always covers the
-// outer field of view without breaking through the shell.
+const DUSK = {
+  top: '#050A1A',
+  middle: '#152850',
+  bottom: '#0F1F38',
+}
+
 const SKY_RADIUS = 4500
 
 const vertexShader = /* glsl */ `
@@ -39,9 +32,7 @@ const fragmentShader = /* glsl */ `
   varying vec3 vDir;
 
   void main() {
-    // Normalized y gives a -1..1 zenith->horizon->nadir height factor.
     float h = normalize(vDir).y;
-    // Upper-hemisphere gradient coefficient (exponent controls horizon band width).
     float t = pow(clamp(h, 0.0, 1.0), exponent);
     vec3 col;
     if (t < 0.5) {
@@ -49,35 +40,57 @@ const fragmentShader = /* glsl */ `
     } else {
       col = mix(middleColor, topColor, (t - 0.5) * 2.0);
     }
-    // Below the horizon, fall back to the horizon color (camera maxPolarAngle < pi/2, kept as a safety net).
     col = h < 0.0 ? bottomColor : col;
     gl_FragColor = vec4(col, 1.0);
   }
 `
 
+function timeToT(timeOfDay: number): number {
+  if (timeOfDay < 0.15) return 1
+  if (timeOfDay < 0.25) {
+    const x = (timeOfDay - 0.15) / 0.1
+    return 1 - x * x * (3 - 2 * x)
+  }
+  if (timeOfDay < 0.75) return 0
+  if (timeOfDay < 0.85) {
+    const x = (timeOfDay - 0.75) / 0.1
+    return x * x * (3 - 2 * x)
+  }
+  return 1
+}
+
 export function SkyDome() {
-  const atmosphere = useSceneStore((s) => s.atmosphere)
+  const meshRef = useRef<THREE.Mesh>(null)
+  const timeOfDay = useSceneStore((s) => s.timeOfDay)
+
+  const dayTop = useMemo(() => new THREE.Color(DAY.top), [])
+  const dayMid = useMemo(() => new THREE.Color(DAY.middle), [])
+  const dayBot = useMemo(() => new THREE.Color(DAY.bottom), [])
+  const duskTop = useMemo(() => new THREE.Color(DUSK.top), [])
+  const duskMid = useMemo(() => new THREE.Color(DUSK.middle), [])
+  const duskBot = useMemo(() => new THREE.Color(DUSK.bottom), [])
 
   const uniforms = useMemo(
     () => ({
-      topColor: { value: new THREE.Color(SKY.day.top) },
-      middleColor: { value: new THREE.Color(SKY.day.middle) },
-      bottomColor: { value: new THREE.Color(SKY.day.bottom) },
+      topColor: { value: new THREE.Color(DAY.top) },
+      middleColor: { value: new THREE.Color(DAY.middle) },
+      bottomColor: { value: new THREE.Color(DAY.bottom) },
       exponent: { value: 0.8 },
     }),
     [],
   )
 
-  // On day/dusk switch, only update uniform colors — do not rebuild the material.
   useEffect(() => {
-    const s = SKY[atmosphere]
-    uniforms.topColor.value.set(s.top)
-    uniforms.middleColor.value.set(s.middle)
-    uniforms.bottomColor.value.set(s.bottom)
-  }, [atmosphere, uniforms])
+    const t = timeToT(timeOfDay)
+    uniforms.topColor.value.copy(dayTop).lerp(duskTop, t)
+    uniforms.middleColor.value.copy(dayMid).lerp(duskMid, t)
+    uniforms.bottomColor.value.copy(dayBot).lerp(duskBot, t)
+    const mat = meshRef.current?.material as THREE.ShaderMaterial | undefined
+    if (mat) mat.uniformsNeedUpdate = true
+  }, [timeOfDay, uniforms, dayTop, dayMid, dayBot, duskTop, duskMid, duskBot])
 
   return (
-    <mesh scale={[SKY_RADIUS, SKY_RADIUS, SKY_RADIUS]} renderOrder={-1}>
+    <mesh ref={meshRef} scale={[SKY_RADIUS, SKY_RADIUS, SKY_RADIUS]} renderOrder={-1}>
       <sphereGeometry args={[1, 64, 16]} />
       <shaderMaterial
         side={THREE.BackSide}

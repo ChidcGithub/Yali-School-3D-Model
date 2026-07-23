@@ -6,6 +6,7 @@ import { Lighting } from './Lighting'
 import { SkyDome } from './SkyDome'
 import { MapGround } from './MapGround'
 import { TileModels } from './TileModels'
+import { SunMoon } from './SunMoon'
 import { CameraRig, INITIAL_CAM } from './CameraRig'
 import { FpsMeter } from './FpsMeter'
 
@@ -13,7 +14,7 @@ function PostProcessing() {
   const granularity = useSceneStore((s) => s.pixelGranularity)
   if (granularity <= 0) return null
   return (
-    <EffectComposer>
+    <EffectComposer multisampling={0}>
       <Pixelation granularity={granularity} />
     </EffectComposer>
   )
@@ -32,6 +33,7 @@ export function CampusScene() {
       <Suspense fallback={null}>
         <Lighting />
         <SkyDome />
+        <SunMoon />
         <MapGround />
         <TileModels />
         <FpsMeter />

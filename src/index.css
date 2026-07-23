@@ -32,11 +32,11 @@ body,
 }
 
 .metro-tile-accent {
-  background: #E8A33D;
-  color: #000000;
+  background: #223b6c;
+  color: #ffffff;
 }
 
-/* Thin Metro scrollbar — amber accent on transparent track. */
+/* Thin Metro scrollbar — accent on transparent track. */
 .scroll-thin::-webkit-scrollbar {
   width: 4px;
 }
@@ -44,10 +44,10 @@ body,
   background: transparent;
 }
 .scroll-thin::-webkit-scrollbar-thumb {
-  background: rgba(232, 163, 61, 0.45);
+  background: rgba(34, 59, 108, 0.45);
 }
 .scroll-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(232, 163, 61, 0.75);
+  background: rgba(34, 59, 108, 0.75);
 }
 
 /* Flat key cap — solid block, no 3D bevel. Used in ControlHints. */
@@ -58,8 +58,8 @@ body,
   min-width: 1.75rem;
   height: 1.5rem;
   padding: 0 0.4rem;
-  background: #E8A33D;
-  color: #000000;
+  background: #223b6c;
+  color: #ffffff;
   font-family: "Cascadia Code", Consolas, "JetBrains Mono", monospace;
   font-size: 11px;
   font-weight: 600;
@@ -73,7 +73,7 @@ body,
   top: 0;
   bottom: 0;
   width: 3px;
-  background: #E8A33D;
+  background: #223b6c;
 }
 
 .text-balance {

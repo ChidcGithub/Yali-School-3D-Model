@@ -263,7 +263,7 @@ export function parseTile(tileName: string, texts: TileTexts): THREE.Group {
   group.name = tileName
 
   // Photogrammetry meshes: ensure bounding data exists for frustum culling
-  // and Box3 computation; tweak material for slightly softer shading.
+  // and Box3 computation; add fresnel edge fade to soften hard polygon edges.
   group.traverse((child) => {
     const mesh = child as THREE.Mesh
     if (mesh.isMesh) {
@@ -272,6 +272,19 @@ export function parseTile(tileName: string, texts: TileTexts): THREE.Group {
       const mat = mesh.material as THREE.MeshPhongMaterial | undefined
       if (mat) {
         mat.side = THREE.FrontSide
+        mat.transparent = true
+        mat.depthWrite = true
+        mat.onBeforeCompile = (shader) => {
+          shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <output_fragment>',
+            `
+            float _fresnel = 1.0 - abs(dot(normalize(vNormal), normalize(vViewDirection)));
+            float _edgeFade = 1.0 - smoothstep(0.25, 0.65, _fresnel);
+            gl_FragColor.a *= _edgeFade;
+            #include <output_fragment>
+            `
+          )
+        }
       }
     }
   })

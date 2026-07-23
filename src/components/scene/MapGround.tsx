@@ -127,17 +127,30 @@ export function MapGround() {
     }
   }, [tx0, ty0, tx1, ty1, cols, rows])
 
-  // Tint the map in dusk mode so satellite imagery doesn't look too bright.
-  const atmosphere = useSceneStore((s) => s.atmosphere)
+  // Smoothly tint the map based on time of day — no abrupt switch.
+  const timeOfDay = useSceneStore((s) => s.timeOfDay)
   useEffect(() => {
     if (!meshRef.current) return
     const mat = meshRef.current.material as THREE.MeshBasicMaterial
-    if (atmosphere === 'dusk') {
-      mat.color.set('#152B40')
+    // Same smoothstep as SkyDome/Lighting: day→0, night→1, smooth in between
+    let t: number
+    if (timeOfDay < 0.15) {
+      t = 1 // deep night
+    } else if (timeOfDay < 0.25) {
+      const x = (timeOfDay - 0.15) / 0.1
+      t = 1 - x * x * (3 - 2 * x) // dawn transition
+    } else if (timeOfDay < 0.75) {
+      t = 0 // full day
+    } else if (timeOfDay < 0.85) {
+      const x = (timeOfDay - 0.75) / 0.1
+      t = x * x * (3 - 2 * x) // dusk transition
     } else {
-      mat.color.set('#ffffff')
+      t = 1 // deep night
     }
-  }, [atmosphere, texReady])
+    const dayColor = new THREE.Color('#ffffff')
+    const nightColor = new THREE.Color('#152B40')
+    mat.color.copy(dayColor).lerp(nightColor, t)
+  }, [timeOfDay, texReady])
 
   const pw = wx1 - wx0
   const pd = wz1 - wz0

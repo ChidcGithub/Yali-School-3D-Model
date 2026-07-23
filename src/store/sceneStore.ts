@@ -29,8 +29,11 @@ interface SceneState {
   proxyUrl: string
   reloadKey: number
 
-  // Atmosphere / UI
-  atmosphere: Atmosphere
+  // Atmosphere — continuous time-of-day cycle (1 real minute = 1 full day).
+  // 0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset.
+  timeOfDay: number
+  // When non-null, accelerate toward this timeOfDay target at 20x speed.
+  boostTarget: number | null
   showHints: boolean
   fps: number
   pixelGranularity: number
@@ -68,8 +71,8 @@ interface SceneState {
   setLoaded: () => void
   setLoadError: (msg: string) => void
   setProxyUrl: (url: string) => void
-  setAtmosphere: (a: Atmosphere) => void
-  toggleAtmosphere: () => void
+  toggleDayNight: () => void
+  setTimeOfDay: (t: number) => void
   dismissHints: () => void
   setFps: (f: number) => void
   setAirwall: (axis: 'x' | 'y' | 'z', value: { min: number; max: number }) => void
@@ -89,7 +92,8 @@ export const useSceneStore = create<SceneState>((set) => ({
   proxyUrl: '',
   reloadKey: 0,
 
-  atmosphere: 'day',
+  timeOfDay: 0.3, // start at morning
+  boostTarget: null,
   showHints: true,
   fps: 0,
   pixelGranularity: 4,
@@ -191,8 +195,17 @@ export const useSceneStore = create<SceneState>((set) => ({
       loadError: null,
     })),
 
-  setAtmosphere: (a) => set({ atmosphere: a }),
-  toggleAtmosphere: () => set((s) => ({ atmosphere: s.atmosphere === 'day' ? 'dusk' : 'day' })),
+  toggleDayNight: () =>
+    set((s) => {
+      const t = s.timeOfDay
+      // Find next day→night or night→day boundary
+      const isNight = t < 0.25 || t > 0.75
+      let boundary = isNight ? 0.25 : 0.75
+      if (boundary <= t) boundary += 1 // wrap if needed
+      const target = ((boundary + 1 / 24) % 1 + 1) % 1 // boundary + 1 hour, wrapped to 0-1
+      return { boostTarget: target }
+    }),
+  setTimeOfDay: (t) => set({ timeOfDay: t }),
   dismissHints: () => set({ showHints: false }),
   setFps: (f) => set({ fps: f }),
 

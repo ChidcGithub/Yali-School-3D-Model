@@ -3,6 +3,7 @@ import { ChevronRight } from 'lucide-react'
 import { useSceneStore } from '@/store/sceneStore'
 import { TILE_NAMES } from '@/three/tiles'
 import { cn } from '@/lib/utils'
+import emblemUrl from '@/assets/emblem.png'
 
 // Number of downloaded tiles required before the SKIP button appears. Matches
 // the centering threshold in TileModels so the scene is centered by the time
@@ -52,20 +53,20 @@ export function LoadingScreen() {
         isLoaded ? 'pointer-events-none opacity-0' : 'opacity-100',
       )}
     >
-      {/* Brand tile — single amber block, pulsing like a live tile. */}
+      {/* Brand tile — pulsing emblem */}
       <div className="animate-metro-rise" style={{ animationDelay: '0ms' }}>
-        <div className="metro-tile-accent animate-amber-pulse flex h-28 w-28 items-center justify-center">
-          <span className="text-[64px] font-light leading-none text-black">Y</span>
+        <div className="flex h-28 w-28 items-center justify-center">
+          <img src={emblemUrl} alt="YALI" className="h-full w-full object-contain animate-amber-pulse" />
         </div>
       </div>
 
       {/* Title */}
       <div className="animate-metro-rise mt-8 text-center" style={{ animationDelay: '80ms' }}>
         <div className="text-[32px] font-light uppercase tracking-metro text-white">
-          YALI <span className="text-amber">·</span> CAMPUS 3D
+          YALI School
         </div>
         <div className="mt-2 font-mono text-[10px] uppercase tracking-metro text-fog">
-          YALI MIDDLE SCHOOL CAMPUS 3D RECONSTRUCTION
+          3D CAMPUS RECONSTRUCTION
         </div>
       </div>
 
@@ -116,7 +117,7 @@ export function LoadingScreen() {
                   )}
                   style={
                     st === 'downloading' && tp > 0
-                      ? { backgroundImage: `linear-gradient(to right, #E8A33D ${tp}%, #333333 ${tp}%)` }
+                      ? { backgroundImage: `linear-gradient(to right, #223b6c ${tp}%, #333333 ${tp}%)` }
                       : undefined
                   }
                 />
@@ -173,7 +174,7 @@ export function LoadingScreen() {
                   'px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-metro transition-colors',
                   proxyInput.trim() === proxyUrl
                     ? 'cursor-not-allowed bg-ink-800 text-fog/30'
-                    : 'bg-amber text-black hover:bg-amber-soft',
+                    : 'bg-amber text-white hover:bg-amber-soft',
                 )}
               >
                 SET
