@@ -13,10 +13,6 @@ import {
 // chunks/sec, so we buffer and flush to the store at most 10x/sec.
 const PROGRESS_FLUSH_MS = 100
 
-// Mobile browsers have lower connection limits and memory; throttle downloads.
-const IS_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-const DOWNLOAD_CONCURRENCY = IS_MOBILE ? 3 : 18
-
 // Concurrent download + serial parse loader.
 //
 // All 18 tiles are requested simultaneously (the browser multiplexes across its
@@ -119,8 +115,8 @@ export function TileModels() {
       void drainParse()
     }
 
-    // Fire downloads in batches on mobile to avoid overwhelming connection limits.
-    const downloadOne = async (name: string) => {
+    // Fire every download at once — no client-side concurrency limit.
+    const downloadTasks = names.map(async (name) => {
       setTileDownloading(name)
       try {
         const texts = await downloadTileTexts(name, (received, total) => {
@@ -139,16 +135,9 @@ export function TileModels() {
         settled += 1
         maybeFinish()
       }
-    }
+    })
 
-    const runDownloads = async () => {
-      for (let i = 0; i < names.length && !cancelled; i += DOWNLOAD_CONCURRENCY) {
-        const batch = names.slice(i, i + DOWNLOAD_CONCURRENCY).map(downloadOne)
-        await Promise.all(batch)
-      }
-    }
-
-    runDownloads().catch((e) => {
+    Promise.all(downloadTasks).catch((e) => {
       if (!cancelled) setLoadError(`Download error: ${(e as Error)?.message ?? e}`)
     })
 
