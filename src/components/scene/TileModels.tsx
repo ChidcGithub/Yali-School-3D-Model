@@ -4,10 +4,13 @@ import { useSceneStore } from '@/store/sceneStore'
 import {
   TILE_NAMES,
   downloadTileTexts,
+  downloadTileGLB,
   parseTile,
   setTileBaseFromProxy,
   type TileTexts,
 } from '@/three/tiles'
+
+const IS_SAFARI = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
 
 // Byte-progress flush cadence: 18 concurrent downloads each fire hundreds of
 // chunks/sec, so we buffer and flush to the store at most 10x/sec.
@@ -115,7 +118,31 @@ export function TileModels() {
       void drainParse()
     }
 
-    // Fire every download at once — no client-side concurrency limit.
+    // Safari: load Draco-compressed GLB (async parse, less memory).
+    if (IS_SAFARI) {
+      const dl = async (name: string) => {
+        setTileDownloading(name)
+        try {
+          const group = await downloadTileGLB(name)
+          if (cancelled) return
+          progressBuf[name] = { received: 1, total: 1 }
+          setTileReady(name)
+          setTiles((prev) => [...prev, group])
+          settled += 1
+          maybeFinish()
+        } catch (e) {
+          if (cancelled) return
+          console.warn(`[tiles] GLB failed for ${name}:`, e)
+          setTileError(name)
+          settled += 1
+          maybeFinish()
+        }
+      }
+      Promise.all(names.map(dl)).catch((e) => {
+        if (!cancelled) setLoadError(`Error: ${(e as Error)?.message ?? e}`)
+      })
+    } else {
+      // Fire every download at once — no client-side concurrency limit.
     const downloadTasks = names.map(async (name) => {
       setTileDownloading(name)
       try {
@@ -140,6 +167,7 @@ export function TileModels() {
     Promise.all(downloadTasks).catch((e) => {
       if (!cancelled) setLoadError(`Download error: ${(e as Error)?.message ?? e}`)
     })
+    }
 
     return () => {
       cancelled = true
