@@ -13,11 +13,6 @@ import {
 // chunks/sec, so we buffer and flush to the store at most 10x/sec.
 const PROGRESS_FLUSH_MS = 100
 
-// Safari on iOS has severe GPU memory limits and may kill the WebGL context
-// when loading many large OBJ tiles concurrently. Batch into small groups
-// with delays between batches to let GC free memory.
-const IS_SAFARI = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-
 // Concurrent download + serial parse loader.
 //
 // All 18 tiles are requested simultaneously (the browser multiplexes across its
@@ -123,37 +118,8 @@ export function TileModels() {
       void drainParse()
     }
 
-    // Safari: batch downloads 2 at a time with GC-friendly delays.
-    // Other browsers: fire all downloads at once.
-    if (IS_SAFARI) {
-      const runBatch = async () => {
-        for (let i = 0; i < names.length && !cancelled; i += 2) {
-          const batch = names.slice(i, i + 2)
-          await Promise.all(batch.map(async (name) => {
-            setTileDownloading(name)
-            try {
-              const texts = await downloadTileTexts(name, (r, t) => { if (!cancelled) progressBuf[name] = { received: r, total: t } })
-              if (cancelled) return
-              const full = texts.obj.length + texts.mtl.length
-              progressBuf[name] = { received: full, total: full }
-              setTileDownloaded(name)
-              enqueueParse(name, texts)
-            } catch (e) {
-              if (cancelled) return
-              console.warn(`[tiles] ${name} failed:`, e)
-              setTileError(name)
-              settled += 1
-              maybeFinish()
-            }
-          }))
-          if (!cancelled && i + 2 < names.length) {
-            await new Promise((r) => setTimeout(r, 1500))
-          }
-        }
-      }
-      runBatch().catch((e) => { if (!cancelled) setLoadError(`Download error: ${(e as Error)?.message ?? e}`) })
-    } else {
-      const downloadTasks = names.map(async (name) => {
+    // Fire every download at once — no client-side concurrency limit.
+    const downloadTasks = names.map(async (name) => {
       setTileDownloading(name)
       try {
         const texts = await downloadTileTexts(name, (received, total) => {
@@ -177,7 +143,6 @@ export function TileModels() {
     Promise.all(downloadTasks).catch((e) => {
       if (!cancelled) setLoadError(`Download error: ${(e as Error)?.message ?? e}`)
     })
-    }
 
     return () => {
       cancelled = true

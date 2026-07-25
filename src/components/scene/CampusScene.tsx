@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber'
-import { Suspense, useCallback } from 'react'
+import { Suspense } from 'react'
 import { EffectComposer, Pixelation } from '@react-three/postprocessing'
 import { useSceneStore } from '@/store/sceneStore'
 import { Lighting } from './Lighting'
@@ -10,7 +10,6 @@ import { SunMoon } from './SunMoon'
 import { Clouds } from './Clouds'
 import { CameraRig, INITIAL_CAM } from './CameraRig'
 import { FpsMeter } from './FpsMeter'
-import * as THREE from 'three'
 
 function PostProcessing() {
   const granularity = useSceneStore((s) => s.pixelGranularity)
@@ -23,26 +22,14 @@ function PostProcessing() {
 }
 
 export function CampusScene() {
-  const onCreated = useCallback(({ gl }: { gl: THREE.WebGLRenderer }) => {
-    gl.setClearColor('#000000')
-
-    const canvas = gl.domElement
-    canvas.addEventListener('webglcontextlost', (e) => {
-      e.preventDefault()
-      console.warn('[CampusScene] WebGL context lost — Safari memory pressure')
-    })
-    canvas.addEventListener('webglcontextrestored', () => {
-      console.log('[CampusScene] WebGL context restored')
-      gl.setClearColor('#000000')
-    })
-  }, [])
-
   return (
     <Canvas
       gl={{ antialias: false, powerPreference: 'high-performance' }}
       dpr={[1, 2]}
       camera={{ fov: 50, near: 0.5, far: 6000, position: INITIAL_CAM }}
-      onCreated={onCreated}
+      onCreated={({ gl }) => {
+        gl.setClearColor('#000000')
+      }}
     >
       <Suspense fallback={null}>
         <Lighting />
