@@ -137,38 +137,7 @@ export function TileModels() {
       }
     })
 
-    Promise.all(downloadTasks).then(async () => {
-      if (cancelled) return
-      // Recovery pass: retry failed tiles twice with backoff.
-      for (let attempt = 0; attempt < 2 && !cancelled; attempt++) {
-        const failed = names.filter((n) => useSceneStore.getState().tileProgress[n]?.status === 'error')
-        if (failed.length === 0) break
-        console.warn(`[tiles] recovery pass ${attempt + 1}: retrying ${failed.length} failed tiles`)
-        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)))
-        if (cancelled) break
-        await Promise.all(failed.map(async (name) => {
-          setTileDownloading(name)
-          settled -= 1
-          try {
-            const texts = await downloadTileTexts(name, (received, total) => {
-              if (cancelled) return
-              progressBuf[name] = { received, total }
-            })
-            if (cancelled) return
-            const full = texts.obj.length + texts.mtl.length
-            progressBuf[name] = { received: full, total: full }
-            setTileDownloaded(name)
-            enqueueParse(name, texts)
-          } catch (e) {
-            if (cancelled) return
-            console.warn(`[tiles] recovery failed for ${name}:`, e)
-            setTileError(name)
-            settled += 1
-            maybeFinish()
-          }
-        }))
-      }
-    }).catch((e) => {
+    Promise.all(downloadTasks).catch((e) => {
       if (!cancelled) setLoadError(`Download error: ${(e as Error)?.message ?? e}`)
     })
 

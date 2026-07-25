@@ -195,6 +195,21 @@ export function LoadingScreen() {
       )}
       <div className="absolute bottom-4 w-full text-center font-mono text-[9px] text-fog/25">
         v1.94.82
+        {' · '}
+        <button
+          onClick={async () => {
+            try {
+              await Promise.all([
+                caches.delete('yali-tiles-v1'),
+                caches.delete('yali-maptiles-v1'),
+              ])
+              window.location.reload()
+            } catch { window.location.reload() }
+          }}
+          className="text-fog/25 hover:text-red-400 transition-colors uppercase"
+        >
+          CLEAR CACHE
+        </button>
       </div>
     </div>
   )
