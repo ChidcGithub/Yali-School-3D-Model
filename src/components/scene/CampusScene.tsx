@@ -43,8 +43,8 @@ export function CampusScene() {
   return (
     <Canvas
       ref={canvasRef}
-      gl={{ antialias: false, powerPreference: 'high-performance', alpha: false }}
-      dpr={[0.5, 1]}
+      gl={{ antialias: false, powerPreference: 'high-performance' }}
+      dpr={[1, 2]}
       camera={{ fov: 50, near: 0.5, far: 6000, position: INITIAL_CAM }}
       onCreated={onCreated}
     >
