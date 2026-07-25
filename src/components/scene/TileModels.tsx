@@ -97,10 +97,13 @@ export function TileModels() {
         await new Promise((r) => setTimeout(r, 0))
         if (cancelled) return
         try {
-          const g = parseTile(item.name, item.texts)
+          const parsed = parseTile(item.name, item.texts)
+          // Release OBJ text immediately — each tile's text is 20-50MB.
+          item.texts.mtl = ''
+          item.texts.obj = ''
           if (cancelled) return
           // Incremental mount — the campus grows as each tile finishes parsing.
-          setTiles((prev) => [...prev, g])
+          setTiles((prev) => [...prev, parsed])
           setTileReady(item.name)
         } catch (e) {
           console.warn(`[tiles] parse failed for ${item.name}:`, e)
