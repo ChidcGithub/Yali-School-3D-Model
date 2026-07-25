@@ -68,6 +68,16 @@ export function LoadingScreen() {
         <div className="mt-2 font-mono text-[10px] uppercase tracking-metro text-fog">
           3D CAMPUS RECONSTRUCTION
         </div>
+        <div className="mt-4 font-mono text-[9px] uppercase tracking-metro text-fog/40">
+          BY{' '}
+          <a href="https://github.com/ChidcGithub" target="_blank" rel="noopener noreferrer" className="text-amber/70 hover:text-amber transition-colors">
+            CHIDCGITHUB
+          </a>
+          {' · '}
+          <a href="https://github.com/ChidcGithub/Yali-School-3D-Model" target="_blank" rel="noopener noreferrer" className="text-amber/70 hover:text-amber transition-colors">
+            PROJECT REPO
+          </a>
+        </div>
       </div>
 
       {error ? (
@@ -183,6 +193,9 @@ export function LoadingScreen() {
           </div>
         </div>
       )}
+      <div className="absolute bottom-4 w-full text-center font-mono text-[9px] text-fog/25">
+        v1.94.82
+      </div>
     </div>
   )
 }

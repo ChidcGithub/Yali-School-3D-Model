@@ -7,13 +7,14 @@ import { useSceneStore } from '@/store/sceneStore'
 export function ControlHints() {
   const showHints = useSceneStore((s) => s.showHints)
   const dismissHints = useSceneStore((s) => s.dismissHints)
+  const isLoaded = useSceneStore((s) => s.isLoaded)
   const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
-    if (!showHints) return
+    if (!showHints || !isLoaded) return
     const t = setTimeout(() => dismissHints(), 9000)
     return () => clearTimeout(t)
-  }, [showHints, dismissHints])
+  }, [showHints, isLoaded, dismissHints])
 
   if (!showHints) return null
 

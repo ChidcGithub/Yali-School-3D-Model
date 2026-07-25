@@ -14,10 +14,10 @@ const MAP_Y = 25
 const ZOOM = 15
 const TILE_PX = 256
 
-const MAP_X_MIN = -300
-const MAP_X_MAX = 1100
-const MAP_Z_MIN = -1300
-const MAP_Z_MAX = 300
+const MAP_X_MIN = -1000
+const MAP_X_MAX = 1800
+const MAP_Z_MIN = -2100
+const MAP_Z_MAX = 1100
 
 export function MapGround() {
   const meshRef = useRef<THREE.Mesh>(null)

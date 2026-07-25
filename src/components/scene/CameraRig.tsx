@@ -24,7 +24,7 @@ export const INITIAL_TGT: [number, number, number] = [449, -52, -382]
 // manipulations stay coherent.
 const BASE_SPEED = 60 // world units per second
 const SHIFT_MULT = 2
-const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'q', 'e'])
+const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'q', 'e', 'shift'])
 
 export function CameraRig() {
   const controlsRef = useRef<OrbitControlsImpl>(null)
@@ -159,7 +159,6 @@ export function CameraRig() {
       dampingFactor={0.08}
       minDistance={5}
       maxDistance={2200}
-      maxPolarAngle={Math.PI / 2 - 0.02}
       enablePan
       target={INITIAL_TGT}
     />

@@ -10,7 +10,7 @@ export default function Home() {
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink-950">
       {/* 3D viewport (full-bleed) */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0" style={{ touchAction: 'none' }}>
         <CampusScene />
       </div>
 

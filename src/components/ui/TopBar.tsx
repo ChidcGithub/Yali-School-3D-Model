@@ -25,7 +25,7 @@ export function TopBar() {
           <img src={emblemUrl} alt="YALI" className="h-8 w-8 object-contain" />
           <div className="leading-none">
             <div className="text-[15px] font-semibold uppercase tracking-metro text-white">
-              YALI School
+              YALI High School
             </div>
             <div className="mt-1 font-mono text-[9px] uppercase tracking-metro text-white/70">
               PHOTOGRAMMETRY / 28.17°N 112.98°E
