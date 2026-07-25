@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Windows junction — created locally, CI uses symlink instead
+public/Models
