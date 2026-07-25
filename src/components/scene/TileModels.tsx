@@ -93,9 +93,6 @@ export function TileModels() {
         if (cancelled) return
         try {
           const parsed = parseTile(item.name, item.texts)
-          // Release OBJ text immediately — each tile's text is 20-50MB.
-          item.texts.mtl = ''
-          item.texts.obj = ''
           if (cancelled) return
           // Incremental mount — the campus grows as each tile finishes parsing.
           setTiles((prev) => [...prev, parsed])

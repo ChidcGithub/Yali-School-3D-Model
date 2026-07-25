@@ -257,25 +257,6 @@ export function parseTile(tileName: string, texts: TileTexts): THREE.Group {
   const materials = mtlLoader.parse(texts.mtl, `${dir}/`)
   materials.preload()
 
-  // Limit texture max size to reduce GPU memory on mobile/Safari.
-  const MAX_TEX = 1024
-  for (const key of Object.keys(materials.materials)) {
-    const mat = materials.materials[key] as THREE.MeshPhongMaterial
-    if (mat.map && mat.map.image) {
-      const img = mat.map.image as HTMLImageElement
-      if (img.width > MAX_TEX || img.height > MAX_TEX) {
-        const s = Math.min(MAX_TEX / img.width, MAX_TEX / img.height)
-        const c = document.createElement('canvas')
-        c.width = Math.round(img.width * s)
-        c.height = Math.round(img.height * s)
-        c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
-        mat.map.dispose()
-        mat.map = new THREE.CanvasTexture(c)
-        mat.map.colorSpace = THREE.SRGBColorSpace
-      }
-    }
-  }
-
   const objLoader = new OBJLoader()
   objLoader.setMaterials(materials)
   const group = objLoader.parse(texts.obj)
