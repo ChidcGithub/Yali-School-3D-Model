@@ -65,9 +65,7 @@ function Sun() {
       else speed = baseSpeed * BOOST_SPEED
     }
     timeOfDay = (timeOfDay + speed * delta) % 1.0
-    if (boostTarget !== store.boostTarget || Math.abs(timeOfDay - store.timeOfDay) > 0.0001) {
-      useSceneStore.setState({ timeOfDay, boostTarget })
-    }
+    useSceneStore.setState({ timeOfDay, boostTarget })
   })
 
   return null
