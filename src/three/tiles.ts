@@ -322,6 +322,7 @@ export async function downloadTileGLB(tileName: string): Promise<THREE.Group> {
     const objectUrl = URL.createObjectURL(blob)
     loader.load(objectUrl, (gltf) => {
       URL.revokeObjectURL(objectUrl)
+      gltf.scene.name = tileName
       resolve(gltf.scene)
     }, undefined, (err) => {
       URL.revokeObjectURL(objectUrl)
