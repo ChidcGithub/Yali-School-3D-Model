@@ -2,7 +2,6 @@ import * as THREE from 'three'
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 
 // Tile directories under Models/OBJ/Data (scanned from the project folder).
 export const TILE_NAMES = [
@@ -293,18 +292,9 @@ export function parseTile(tileName: string, texts: TileTexts): THREE.Group {
   return group
 }
 
-// ─── Draco GLB loader for Safari ────────────────────────────────────────────
+// ─── GLB loader for Safari ──────────────────────────────────────────────────
 
-const IOS_BASE = `${import.meta.env.BASE_URL}ios`
-
-let dracoLoader: DRACOLoader | null = null
-function getDRACOLoader(): DRACOLoader {
-  if (!dracoLoader) {
-    dracoLoader = new DRACOLoader()
-    dracoLoader.setDecoderPath(`${import.meta.env.BASE_URL}draco/`)
-  }
-  return dracoLoader
-}
+const IOS_BASE = `${import.meta.env.BASE_URL}Models/optimized_for_IOS`
 
 export async function downloadTileGLB(tileName: string): Promise<THREE.Group> {
   const url = `${IOS_BASE}/${tileName}.glb`
@@ -320,7 +310,6 @@ export async function downloadTileGLB(tileName: string): Promise<THREE.Group> {
       setCachedBlob(url, blob)
     }
   } catch (e) {
-    // Fall back to network without cache
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     blob = await res.blob()
@@ -328,7 +317,6 @@ export async function downloadTileGLB(tileName: string): Promise<THREE.Group> {
 
   return new Promise((resolve, reject) => {
     const loader = new GLTFLoader()
-    loader.setDRACOLoader(getDRACOLoader())
     const objectUrl = URL.createObjectURL(blob)
     loader.load(objectUrl, (gltf) => {
       URL.revokeObjectURL(objectUrl)
@@ -337,8 +325,6 @@ export async function downloadTileGLB(tileName: string): Promise<THREE.Group> {
       URL.revokeObjectURL(objectUrl)
       reject(err)
     })
-    // FIX: GLTFLoader.load() with a blob URL is synchronous in discovery,
-    // but the callback fires later. We need to wait for the promise.
   })
 }
 
