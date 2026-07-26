@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 
 // Tile directories under Models/OBJ/Data (scanned from the project folder).
 export const TILE_NAMES = [
@@ -317,6 +318,7 @@ export async function downloadTileGLB(tileName: string): Promise<THREE.Group> {
 
   return new Promise((resolve, reject) => {
     const loader = new GLTFLoader()
+    loader.setMeshoptDecoder(MeshoptDecoder)
     const objectUrl = URL.createObjectURL(blob)
     loader.load(objectUrl, (gltf) => {
       URL.revokeObjectURL(objectUrl)
