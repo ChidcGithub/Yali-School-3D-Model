@@ -300,35 +300,29 @@ const IOS_BASE = `${import.meta.env.BASE_URL}Models/optimized_for_IOS`
 export async function downloadTileGLB(tileName: string): Promise<THREE.Group> {
   const url = `${IOS_BASE}/${tileName}.glb`
 
-  let blob: Blob
+  let arrayBuffer: ArrayBuffer
   try {
     const cached = await getCachedBlob(url)
-    if (cached) { blob = cached }
+    if (cached) { arrayBuffer = await cached.arrayBuffer() }
     else {
       const res = await fetch(url, { cache: 'no-store' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      blob = await res.blob()
+      const blob = await res.blob()
       setCachedBlob(url, blob)
+      arrayBuffer = await blob.arrayBuffer()
     }
   } catch (e) {
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    blob = await res.blob()
+    const blob = await res.blob()
+    arrayBuffer = await blob.arrayBuffer()
   }
 
-  return new Promise((resolve, reject) => {
-    const loader = new GLTFLoader()
-    loader.setMeshoptDecoder(MeshoptDecoder)
-    const objectUrl = URL.createObjectURL(blob)
-    loader.load(objectUrl, (gltf) => {
-      URL.revokeObjectURL(objectUrl)
-      gltf.scene.name = tileName
-      resolve(gltf.scene)
-    }, undefined, (err) => {
-      URL.revokeObjectURL(objectUrl)
-      reject(err)
-    })
-  })
+  const loader = new GLTFLoader()
+  loader.setMeshoptDecoder(MeshoptDecoder)
+  const gltf = await loader.parseAsync(arrayBuffer, '')
+  gltf.scene.name = tileName
+  return gltf.scene
 }
 
 // Cache helpers for GLB blobs.
