@@ -118,10 +118,10 @@ export function TileModels() {
       void drainParse()
     }
 
-    // Safari: load Draco-compressed GLB (async parse, less memory).
+    // Safari: load GLB tiles in small batches to avoid exhausting
+    // iOS Safari's ~6 per-host connection limit.
     if (IS_SAFARI) {
       const dl = async (name: string) => {
-        setTileDownloading(name)
         try {
           const group = await downloadTileGLB(name)
           if (cancelled) return
@@ -138,7 +138,15 @@ export function TileModels() {
           maybeFinish()
         }
       }
-      Promise.all(names.map(dl)).catch((e) => {
+
+      const runBatch = async () => {
+        for (let i = 0; i < names.length && !cancelled; i += 3) {
+          const batch = names.slice(i, i + 3)
+          batch.forEach((n) => setTileDownloading(n))
+          await Promise.all(batch.map(dl))
+        }
+      }
+      runBatch().catch((e) => {
         if (!cancelled) setLoadError(`Error: ${(e as Error)?.message ?? e}`)
       })
     } else {
