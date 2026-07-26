@@ -1,7 +1,7 @@
 {
   "name": "yali-project",
   "private": true,
-  "version": "1.98.232",
+  "version": "1.101.49",
   "type": "module",
   "scripts": {
     "dev": "vite",
