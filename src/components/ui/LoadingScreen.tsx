@@ -194,7 +194,7 @@ export function LoadingScreen() {
         </div>
       )}
       <div className="absolute bottom-4 w-full text-center font-mono text-[9px] text-fog/25">
-        v1.101.49
+        v1.102.7
         {' · '}
         <button
           onClick={async () => {
