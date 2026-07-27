@@ -1,3 +1,5 @@
+<img width="2172" height="724" alt="183803" src="https://github.com/user-attachments/assets/8b0c2ea5-bc82-418d-bacc-08dc30ee657b" />
+
 # YALI · CAMPUS 3D
 
 A browser-based 3D viewer for the Yali Middle School campus, built on photogrammetry reconstruction tiles. Fly through the grounds freely with keyboard + mouse — no plugins required.
