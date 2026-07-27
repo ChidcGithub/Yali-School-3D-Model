@@ -1,4 +1,4 @@
-<img width="2172" height="724" alt="183803" src="https://github.com/user-attachments/assets/8b0c2ea5-bc82-418d-bacc-08dc30ee657b" />
+<img width="2090" height="652" alt="183804" src="https://github.com/user-attachments/assets/98c843cd-638c-4e53-ab5d-9179186df30e" />
 
 # YALI · CAMPUS 3D
 
